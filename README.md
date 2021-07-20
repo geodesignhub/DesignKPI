@@ -1,6 +1,12 @@
 # Asset Analysis and Financial Models for Geodesignhub
 
-Using this library you can build and develop financial scenarios for your designs. You can set costs of construction, expected income, operating expenses and maintenance to calculate the Net Present Value. You can also set additional asset details such as expected visitors, expected workers etc. All of this information can then be aggregated across your study area and summarized to generate a unique spatial, financial analysis.
+Using this plugin you can build and develop financial scenarios for your schemes negotiated in Geodesignhub. 
+
+- Make capital investment decisions and investment / maintenance strategies
+- Develop life-cycle cost analysis and link them to capital allocation decisions
+- Identify risks and returns for your assets 
+- Consolidate / repurpose or develop strategies for repair / reuse of existing buildings
+
 
 ## Table of Contents
 
@@ -17,7 +23,7 @@ Using this library you can build and develop financial scenarios for your design
 
 ## Introduction
 
-This plugin enables comprehensive financial and asset analysis for your Geodesignhub projects. It uses the [Geodesignhub API](http://www.geodesignhub.com/api/) to download data from your project and provide a series of controls to analyze and set potential uses of this asset, conduct financial Analysis and finally conduct a investment summary. Using the data import / export feature you can take the model data out and generate and load different financial scenarios.
+This plugin enables comprehensive financial and asset analysis for your Geodesignhub projects. It uses the [Geodesignhub API](http://www.geodesignhub.com/api/) to download data from your project and provide a series of controls to analyze and set potential uses of this asset, conduct financial Analysis and finally conduct a investment summary. Using the data import / export feature you can take the model data out and generate and load different financial scenarios. This way, you can quickly __make sense of financial data__, __prepare for future risks__ and __proactively manage assets__ using digital tools.
 
 ## Bulk update Financial Details
 
