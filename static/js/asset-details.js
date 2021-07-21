@@ -2988,7 +2988,7 @@ var ServicesDisplayUpdater = function () {
   }
 
   this.updateEnergy = function (population, demand) {
-    $("#energy_per_capita").editable('setValue', demand);
+    $("#energy_per_capita").editable({'mode':'inline'}).editable('setValue', demand);
 
     const ed = parseInt((population * demand));
     $("#total_energy_demand").html(abbrNum(ed, 2));

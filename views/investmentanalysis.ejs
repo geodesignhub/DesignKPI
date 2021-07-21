@@ -4,11 +4,11 @@
         <nav class="site-header sticky-top py-1">
             <div class="container d-flex flex-column flex-md-row justify-content-between">
                 <!-- Brand and toggle get grouped for better mobile display -->
-                <a class="py-2" class="navbar-brand" href="#">Financial Analysis</a>
-                <a class="py-2 d-none d-md-inline-block active" href="<%= basic_financials_url %>">Costs Table</a></li>
-                <a class="py-2 d-none d-md-inline-block active" href="<%= detailed_financials_url %>">Detailed Costs</a>
+                <a class="py-2" class="navbar-brand" href="#">Design KPI</a>
+                <a class="py-2 d-none d-md-inline-block" href="<%= basic_financials_url %>">Costs Table</a></li>
+                <a class="py-2 d-none d-md-inline-block" href="<%= detailed_financials_url %>">Detailed Costs</a>
                 <a class="py-2 d-none d-md-inline-block active" href="<%= summary_link %>">KPIs</a>
-                <a class="py-2 d-none d-md-inline-block active" href="<%= import_export_url %>">Import / Export</a>
+                <a class="py-2 d-none d-md-inline-block" href="<%= import_export_url %>">Import / Export</a>
                 <!-- /.navbar-header -->
                 <!-- /.navbar-collapse -->
             </div>
@@ -179,7 +179,7 @@
             <div class="row">
                 <div class="col-md-12">
                     <h3>Systems</h3>
-                    <div id="systemsCBCont" style="display:none">
+                    <div id="systemsCBCont">
                         <div id="systemsCB"></div>
                         <br>
 
@@ -257,1595 +257,1622 @@
         <!-- /.container-fluid -->
         <!-- JQuery scripts -->
 
+        <script type="text/javascript" src="assets/js/d3.min.js"></script>
+        <script type="text/javascript" src="assets/js/d3.parcoords.js"></script>
+        <script type="text/javascript" src="assets/js/divgrid.js"></script>
         <%- include('footer-js') -%>
 
-            <script type="text/javascript" src="assets/js/d3.min.js"></script>
-            <script type="text/javascript" src="assets/js/d3.parcoords.js"></script>
-            <script type="text/javascript" src="assets/js/divgrid.js"></script>
-            <script type="text/javascript">
-                var incomeGrid;
-                var standardizationVar;
-                var boundaryStdVar;
-                var maintainenceGrid;
-                var investmentGrid;
-                var boundaryGeomDetails;
-                var boundaryValueDetails;
-                var npv_table;
-                var diag_fin_details_table;
-                var boundaries_investment_tables;
+        <script type="text/javascript">
+            var incomeGrid;
+            var standardizationVar;
+            var boundaryStdVar;
+            var maintainenceGrid;
+            var investmentGrid;
+            var boundaryGeomDetails;
+            var boundaryValueDetails;
+            var npv_table;
+            var diag_fin_details_table;
+            var boundaries_investment_tables;
 
-                var numYears = 30; // number of colums; 
+            var numYears = 30; // number of colums; 
 
 
-                // $("#loadingGIF").addClass('d-none');
-                var opGJ = {
-                    "type": "FeatureCollection",
-                    "features": []
-                };
-                var systems = <%- systems %>;
-                var design = <%- design %>;
-                var systemdetail = <%- systemdetail %>;
-                var apitoken = "<%= apitoken  %>"; //var test is now assigned to getTest which will only work on browsers
-                var projectid = "<%= projectid %>";
-                var projectdetails = <%- projectdetails %>;
-                var syndiagrams = <%- syndiagrams %>;
+            // $("#loadingGIF").addClass('d-none');
+            var opGJ = {
+                "type": "FeatureCollection",
+                "features": []
+            };
+            var systems = <%- systems %>;
+            var design = <%- design %>;
+            var systemdetail = <%- systemdetail %>;
+            var apitoken = "<%= apitoken  %>"; //var test is now assigned to getTest which will only work on browsers
+            var projectid = "<%= projectid %>";
+            var projectdetails = <%- projectdetails %>;
+            var syndiagrams = <%- syndiagrams %>;
 
-                var bounds = <%- bounds %>;
-                var boundaries = <%- boundaries %>;
-                var saved_diagram_details = <%- saved_diagram_details %>;
-                var sequence = <%- sequence %>;
-                var investmentdata;
-                var aggregated_investment_data;
+            var bounds = <%- bounds %>;
+            var boundaries = <%- boundaries %>;
+            var saved_diagram_details = <%- saved_diagram_details %>;
+            var sequence = <%- sequence %>;
+            var investmentdata;
+            var aggregated_investment_data;
 
-                if (boundaries.features.length > 0) {
-                    $(".boundariesCont").removeClass('d-none');
+            if (boundaries.features.length > 0) {
+                $(".boundariesCont").removeClass('d-none');
+            }
+            var startyear = moment(projectdetails['startdate']).year();
+
+            // Source: https://github.com/ebradyjobory/finance.js/blob/master/finance.js 
+            // seekZero seeks the zero point of the function fn(x), accurate to within x \pm 0.01. fn(x) must be decreasing with x.
+            function seekZero(fn) {
+                var x = 1;
+                while (fn(x) > 0) {
+                    x += 1;
                 }
-                var startyear = moment(projectdetails['startdate']).year();
-
-                // Source: https://github.com/ebradyjobory/finance.js/blob/master/finance.js 
-                // seekZero seeks the zero point of the function fn(x), accurate to within x \pm 0.01. fn(x) must be decreasing with x.
-                function seekZero(fn) {
-                    var x = 1;
-                    while (fn(x) > 0) {
-                        x += 1;
-                    }
-                    while (fn(x) < 0) {
-                        x -= 0.01
-                    }
-                    return x + 0.01;
+                while (fn(x) < 0) {
+                    x -= 0.01
                 }
+                return x + 0.01;
+            }
 
-                function compute_irr(cfs) {
-                    var depth = cfs.depth;
-                    var args = cfs.cashFlow;
-                    var numberOfTries = 1;
-                    // Cash flow values must contain at least one positive value and one negative value
-                    var positive, negative;
-                    Array.prototype.slice.call(args).forEach(function (value) {
-                        if (value > 0) positive = true;
-                        if (value < 0) negative = true;
-                    })
-                    if (!positive || !negative) throw new Error(
-                        'IRR requires at least one positive value and one negative value');
+            function compute_irr(cfs) {
+                var depth = cfs.depth;
+                var args = cfs.cashFlow;
+                var numberOfTries = 1;
+                // Cash flow values must contain at least one positive value and one negative value
+                var positive, negative;
+                Array.prototype.slice.call(args).forEach(function (value) {
+                    if (value > 0) positive = true;
+                    if (value < 0) negative = true;
+                })
+                if (!positive || !negative) throw new Error(
+                    'IRR requires at least one positive value and one negative value');
 
-                    function npv(rate) {
-                        numberOfTries++;
-                        if (numberOfTries > depth) {
-                            throw new Error('IRR can\'t find a result');
-                        }
-                        var rrate = (1 + rate / 100);
-                        var npv = args[0];
-                        for (var i = 1; i < args.length; i++) {
-                            npv += (args[i] / Math.pow(rrate, i));
-                        }
-                        return npv;
+                function npv(rate) {
+                    numberOfTries++;
+                    if (numberOfTries > depth) {
+                        throw new Error('IRR can\'t find a result');
                     }
-                    return (seekZero(npv) * 100) / 100;
-                };
+                    var rrate = (1 + rate / 100);
+                    var npv = args[0];
+                    for (var i = 1; i < args.length; i++) {
+                        npv += (args[i] / Math.pow(rrate, i));
+                    }
+                    return npv;
+                }
+                return (seekZero(npv) * 100) / 100;
+            };
 
-                function abbrNum(number, decPlaces) {
-                    if (number < 1000) {
-                        number = Math.round(number);
-                    } else {
-                        decPlaces = Math.pow(10, decPlaces);
-                        var abbrev = ["k", "m", "b", "t"];
-                        for (var i = abbrev.length - 1; i >= 0; i--) {
-                            var size = Math.pow(10, (i + 1) * 3);
-                            if (size <= number) {
-                                number = Math.round(number * decPlaces / size) / decPlaces;
-                                if ((number == 1000) && (i < abbrev.length - 1)) {
-                                    number = 1;
-                                    i++;
+            function abbrNum(number, decPlaces) {
+                if (number < 1000) {
+                    number = Math.round(number);
+                } else {
+                    decPlaces = Math.pow(10, decPlaces);
+                    var abbrev = ["k", "m", "b", "t"];
+                    for (var i = abbrev.length - 1; i >= 0; i--) {
+                        var size = Math.pow(10, (i + 1) * 3);
+                        if (size <= number) {
+                            number = Math.round(number * decPlaces / size) / decPlaces;
+                            if ((number == 1000) && (i < abbrev.length - 1)) {
+                                number = 1;
+                                i++;
 
-                                }
-                                number += abbrev[i];
-                                break;
                             }
+                            number += abbrev[i];
+                            break;
                         }
                     }
-                    return number;
                 }
+                return number;
+            }
 
-                function initpercentSliders() {
-                    $("#wacc-slider").ionRangeSlider({
-                        min: 0,
-                        max: 20,
-                        from: 1,
-                        step: 0.5,
-                        postfix: "%",
-                        grid: true,
-                        prettify_enabled: true
-                    });
+            function initpercentSliders() {
+                $("#wacc-slider").ionRangeSlider({
+                    min: 0,
+                    max: 20,
+                    from: 1,
+                    step: 0.5,
+                    postfix: "%",
+                    grid: true,
+                    prettify_enabled: true
+                });
 
+            }
+
+            function generateInitTables() {
+                destroyTables();
+                var allDiagrams = syndiagrams.diagrams;
+
+                var sys = systems;
+                var syslen = sys.length;
+                for (var x = 0; x < syslen; x++) {
+                    sys[x]['diagrams'] = [];
+                    // sysDiags.push({cursys.name:{"id":cursys.id, "color":cursys.syscolor, "diagrams":[]}});
                 }
-
-                function generateInitTables() {
-                    destroyTables();
-                    var allDiagrams = syndiagrams.diagrams;
-
-                    var sys = systems;
-                    var syslen = sys.length;
-                    for (var x = 0; x < syslen; x++) {
-                        sys[x]['diagrams'] = [];
-                        // sysDiags.push({cursys.name:{"id":cursys.id, "color":cursys.syscolor, "diagrams":[]}});
-                    }
-                    var diagGJ = {};
-                    for (var g = 0; g < allDiagrams.length; g++) {
-                        var curDiag = allDiagrams[g];
-                        diagGJ[parseInt(curDiag)] = {
-                            "type": "FeatureCollection",
-                            "features": []
-                        };
-                    }
-
-                    for (var j = 0; j < design.features.length; j++) {
-                        var curFeat = design.features[j];
-                        var curFeatProp = curFeat.properties;
-                        var diagID = curFeatProp.diagramid;
-                        diagGJ[parseInt(diagID)].features.push(curFeat);
-                    }
-
-                    for (var dID in diagGJ) {
-                        var diagFeats = diagGJ[dID];
-                        var ran = false;
-                        for (var y1 = 0; y1 < diagFeats.features.length; y1++) {
-                            if (ran == false) {
-                                var diagSysName = diagFeats.features[y1].properties.sysname;
-                                // var tmpDiagFeat = {};
-                                for (var x1 = 0; x1 < syslen; x1++) {
-                                    var cursys = sys[x1];
-                                    if (cursys.sysname == diagSysName) {
-                                        // tmpDiagFeat[dID]  = diagFeats;
-                                        sys[x1]['diagrams'].push(diagFeats);
-                                        break;
-                                    }
-                                    ran = true;
-                                }
-                                break;
-                            }
-                        }
-                    }
-
-                    $("#npv").find("tbody>tr:gt(0)").remove();
-                    $("#npv").find("thead>tr:gt(0)").remove();
-
-                    var headcounter = 0;
-                    var footercounter = 0;
-                    for (var h = 0; h < syslen; h++) {
-                        var cursys = sys[h];
-                        if (cursys.diagrams.length > 0) {
-
-                            var yrCounter = 0
-                            if (headcounter === 0) { // header row
-                                var npvHTML =
-                                    "<tr><th class='header initCol'>Title</th><th>Image</th><th>Asset Class</th><th>Asset Subclass</th><th>Residents</th><th class='visitor-detail'>Visitors</th><th class='fundingheader'>Funding</th><th class='systemheader'>System</th>";
-                                npvHTML += "</tr>";
-                                $('#npv  > thead').append(npvHTML);
-                                headcounter += 1;
-                            } // header is added. 
-                            // console.log(npvHTML)
-                            // add system row 
-                            var diaglen = cursys.diagrams.length;
-
-                            for (var p = 0; p < diaglen; p++) {
-                                var curdiag = cursys.diagrams[p];
-                                if (curdiag.features.length > 0) {
-                                    var curdiagprops = curdiag.features[0].properties;
-                                    var curdiagid = curdiag.features[0].properties.diagramid;
-                                    var projectorpolicy = curdiag.features[0].properties.areatype;
-                                    var diagrowHTMLnpv = "<tr class=" + "'" + cursys.id + "'" +
-                                        "><td class='assetdetails initCol'>" +
-                                        curdiagprops.description + "<br>(" + projectorpolicy + ")</td>" + "<td class=" +
-                                        "'assetimage assetimage-" + curdiagid + "'" + "></td>" + "<td class=" +
-                                        "'assetdetails assetdetails-" + curdiagid + "'" + "></td>" + "<td class=" +
-                                        "'assetdetails assetdetails_subclass-" + curdiagid + "'" + "></td>" + "<td class=" +
-                                        "'assetdetails population-" + curdiagid + "'" + "></td>" + "<td class=" +
-                                        "'assetdetails visitors-" + curdiagid + "'" + "></td>" + "<td class=" +
-                                        "assetdetails funding-" +
-                                        curdiagid + "'" +
-                                        ">" + curdiagprops.fundingtype + "</td>" + "<td class=" + "system-" +
-                                        curdiagid + "'" +
-                                        ">" + cursys.sysname + "</td>";
-                                    yrCounter = 0;
-                                    diagrowHTMLnpv += "</tr>";
-                                    $('#npv > tbody').append(diagrowHTMLnpv);
-                                }
-                            }
-                        }
-                    }
-                    systems = sys;
-                }
-
-                function updateWorkerStatus(data) {
-                    $("#procstatus").html(" " + data + "% complete");
-                }
-
-                function aggregate_capex_opex(investmentdata) {
-                    var totalOpex_sga = 0;
-                    var totalCapex = 0;
-                    var total_NOPAT = 0;
-
-                    for (var i = investmentdata.length - 1; i >= 0; i--) {
-                        var current_investment = investmentdata[i];
-                        totalOpex_sga += current_investment['totalMaintainence'];
-                        totalCapex += current_investment['totalInvestment'];
-                        totalIncome = current_investment['totalIncome'];
-                    }
-                    $("#total_capex").html("EUR " + abbrNum(totalCapex, 2));
-                    $("#total_opex_sga").html("EUR " + abbrNum(totalOpex_sga, 2));
-                    $("#total_ebtia").html("EUR " + abbrNum(totalIncome, 2));
-
-
-                }
-
-                function populateTableDataInit() {
-                    destroyTables();
-                    var areaWorker = new Worker('/assets/workers/computeAreas.js');
-                    areaWorker.onerror = function (e) {
-                        console.log('Error: Line ' + e.lineno + ' in ' + e.filename + ': ' + e.message);
-                        $("#loadingGIF").addClass('d-none');
-                        humane.log("There was a error in processing, please try again.. ", {
-                            addnCls: 'humane-flatty-log'
-                        });
-
+                var diagGJ = {};
+                for (var g = 0; g < allDiagrams.length; g++) {
+                    var curDiag = allDiagrams[g];
+                    diagGJ[parseInt(curDiag)] = {
+                        "type": "FeatureCollection",
+                        "features": []
                     };
-                    areaWorker.postMessage({
-                        'systemdetails': JSON.stringify(systemdetail),
-                        'systems': JSON.stringify(systems),
-                        'sequence': JSON.stringify(sequence),
-                        'startyear': JSON.stringify(startyear),
-                        'bounds': bounds['bounds'],
-                        'years': numYears,
-                        'saved_diagram_details': JSON.stringify(saved_diagram_details)
-                    });
-                    areaWorker.addEventListener('message', function (e) {
-                        if (e.data.mode === 'status') {
-                            updateWorkerStatus(e.data.percentcomplete);
-                        } else {
-
-                            standardizationVar = parseInt(e.data.maxYearlyCost);
-                            // grid = JSON.parse(e.data.grid);
-                            // sysGrids = JSON.parse(e.data.sysGrids);
-
-                            // var gridsize = e.data.gridsize;
-                            // var gridsize = parseFloat(gridsize * gridsize * 100).toFixed(2);
-                            // $("#gridsizecont").html("Note: Grid cell size is " + gridsize + " hectares.");
-                            // diagGrids = JSON.parse(e.data.diagGrids);
-
-                            investmentdata = JSON.parse(e.data.output);
-                            aggregated_investment_data = JSON.parse(e.data.system_aggregates);
-                            var annual_population_jobs = JSON.parse(e.data.annual_population_jobs);
-                            showallTables();
-
-                            populateIncomeInvestment(investmentdata);
-                            update_system_investments(aggregated_investment_data);
-                            render_system_investment(aggregated_investment_data);
-                            render_system_totals(aggregated_investment_data);
-                            render_annual_population_jobs(annual_population_jobs);
-
-                            generateSystemCB(systemdetail);
-                            aggregate_capex_opex(investmentdata);
-                            $("#loadingGIF").addClass('d-none');
-                            $('#systemsCBCont').removeClass('d-none');
-                            if (boundaries.features.length > 0) {
-                                updateBoundaries();
-                            }
-                            initializeTables();
-                        }
-                    }, false);
                 }
 
-                function render_annual_population_jobs(annual_population_jobs) {
-                    var population_visitors_dataset = [];
-                    var direct_indirect_jobs_dataset = [];
-                    // console.log(annual_population_jobs);
+                for (var j = 0; j < design.features.length; j++) {
+                    var curFeat = design.features[j];
+                    var curFeatProp = curFeat.properties;
+                    var diagID = curFeatProp.diagramid;
+                    diagGJ[parseInt(diagID)].features.push(curFeat);
+                }
 
-                    var visitor_chart_data = {};
-                    var population_chart_data = {};
-                    population_chart_data['label'] = 'Annual Residents';
-                    visitor_chart_data['label'] = 'Annual Visitors';
-                    population_chart_data['backgroundColor'] = '#f53794',
-                        visitor_chart_data['backgroundColor'] = '#537bc4',
-                        population_chart_data['data'] = [];
-                    visitor_chart_data['data'] = [];
-
-                    var tmp_population_data = [];
-                    var tmp_visitor_data = [];
-
-                    for (var h1 = 0; h1 < numYears; h1++) {
-                        var cYear = (startyear + h1);
-
-                        const cur_year_population = parseInt(annual_population_jobs['annual_residents'][cYear]);
-                        const cur_year_visitor = parseInt(annual_population_jobs['annual_visitors'][cYear]);
-
-                        tmp_population_data.push(cur_year_population);
-                        tmp_visitor_data.push(cur_year_visitor);
-
-                        const cummulative_popuation = tmp_population_data.reduce((a, b) => a + b, 0);
-                        const cummulative_visitors = tmp_visitor_data.reduce((a, b) => a + b, 0);
-
-                        population_chart_data['data'].push(cummulative_popuation);
-                        visitor_chart_data['data'].push(cummulative_visitors);
-                    }
-
-                    population_chart_data['fill'] = false;
-                    visitor_chart_data['fill'] = false;
-
-                    population_chart_data['pointBackgroundColor'] = '#4069A6';
-                    population_chart_data['pointBorderColor'] = '#4069A6';
-                    population_chart_data['borderColor'] = '#4069A6';
-                    population_chart_data['backgroundColor'] = '#4069A6';
-                    visitor_chart_data['pointBackgroundColor'] = '#C80000';
-                    visitor_chart_data['pointBorderColor'] = '#C80000';
-                    visitor_chart_data['borderColor'] = '#C80000';
-                    visitor_chart_data['backgroundColor'] = '#C80000';
-
-                    population_visitors_dataset.push(population_chart_data);
-                    population_visitors_dataset.push(visitor_chart_data);
-
-
-                    var direct_jobs_data = {};
-                    var indirect_jobs_data = {};
-                    indirect_jobs_data['label'] = 'Indirect Jobs';
-                    indirect_jobs_data['backgroundColor'] = '#f67019';
-                    direct_jobs_data['backgroundColor'] = '#4dc9f6';
-                    direct_jobs_data['label'] = 'Direct jobs';
-
-
-                    indirect_jobs_data['pointBackgroundColor'] = '#812695';
-                    indirect_jobs_data['pointBorderColor'] = '#812695';
-                    indirect_jobs_data['borderColor'] = '#812695';
-                    indirect_jobs_data['backgroundColor'] = '#812695';
-                    direct_jobs_data['pointBackgroundColor'] = '#2CA02C';
-                    direct_jobs_data['pointBorderColor'] = '#2CA02C';
-                    direct_jobs_data['borderColor'] = '#2CA02C';
-                    direct_jobs_data['backgroundColor'] = '#2CA02C';
-
-
-                    indirect_jobs_data['fill'] = false;
-                    direct_jobs_data['fill'] = false;
-
-                    indirect_jobs_data['data'] = [];
-                    direct_jobs_data['data'] = [];
-
-                    var tmp_direct_jobs = [];
-                    var tmp_indirect_jobs = [];
-
-                    for (var h1 = 0; h1 < numYears; h1++) {
-                        var cYear = (startyear + h1);
-
-                        const cur_year_indirect_jobs = parseInt(annual_population_jobs['annual_indirect_jobs'][cYear]);
-                        const cur_year_direct_jobs = parseInt(annual_population_jobs['annual_direct_jobs'][cYear]);
-
-                        tmp_direct_jobs.push(cur_year_direct_jobs);
-                        tmp_indirect_jobs.push(cur_year_indirect_jobs);
-
-                        const cummulative_direct_jobs = tmp_direct_jobs.reduce((a, b) => a + b, 0);
-                        const cummulative_indirect_jobs = tmp_indirect_jobs.reduce((a, b) => a + b, 0);
-
-                        indirect_jobs_data['data'].push(cummulative_indirect_jobs);
-
-                        direct_jobs_data['data'].push(cummulative_direct_jobs);
-                    }
-
-                    direct_indirect_jobs_dataset.push(indirect_jobs_data);
-                    direct_indirect_jobs_dataset.push(direct_jobs_data);
-
-                    var options = {
-                        maintainAspectRatio: false,
-                        title: {
-                            display: false,
-                        },
-                        plugins: {
-                            legend: {
-                                labels: {
-                                    // This more specific font property overrides the global property
-                                    font: {
-                                        size: 12,
-                                        family: "Consolas, monaco, monospace"
-                                    }
+                for (var dID in diagGJ) {
+                    var diagFeats = diagGJ[dID];
+                    var ran = false;
+                    for (var y1 = 0; y1 < diagFeats.features.length; y1++) {
+                        if (ran == false) {
+                            var diagSysName = diagFeats.features[y1].properties.sysname;
+                            // var tmpDiagFeat = {};
+                            for (var x1 = 0; x1 < syslen; x1++) {
+                                var cursys = sys[x1];
+                                if (cursys.sysname == diagSysName) {
+                                    // tmpDiagFeat[dID]  = diagFeats;
+                                    sys[x1]['diagrams'].push(diagFeats);
+                                    break;
                                 }
+                                ran = true;
                             }
-                        },
-                        tooltips: {
-                            mode: 'index',
-                            intersect: false,
-                        },
-                        hover: {
-                            mode: 'nearest',
-                            intersect: true
-                        },
-                        scales: {
-                            xAxes: [{
-                                display: true,
-                                stacked: true,
-                                scaleLabel: {
-                                    display: true,
-                                    labelString: 'Year'
-                                }
-                            }],
-                            yAxes: [{
-                                display: true,
-                                stacked: true,
-                                ticks: {
-                                    beginAtZero: true,
-                                    callback: function (value, index, values) {
-                                        if (value > 100000)
-                                            return value / 1e6 + 'M';
-                                        else {
-                                            return value + ' ';
-                                        }
-                                    }
-                                },
-                                tooltips: {
-                                    callbacks: {
-                                        label: function (tooltipItem, chart) {
-                                            var datasetLabel = chart.datasets[tooltipItem.datasetIndex].label ||
-                                                '';
-                                            // console.log(tooltipItem.yLabel)
-                                            return datasetLabel + number_format(abbrNum(parseInt(tooltipItem
-                                                .yLabel), 2), 2, '.', ' ') + ' people';
-                                        }
-                                    }
-                                },
-
-                            }]
+                            break;
                         }
                     }
+                }
 
-                    var labels = [];
-                    for (var g1 = 0; g1 < numYears; g1++) {
-                        var cYear = (startyear + g1);
-                        labels.push(cYear);
+                $("#npv").find("tbody>tr:gt(0)").remove();
+                $("#npv").find("thead>tr:gt(0)").remove();
+
+                var headcounter = 0;
+                var footercounter = 0;
+                for (var h = 0; h < syslen; h++) {
+                    var cursys = sys[h];
+                    if (cursys.diagrams.length > 0) {
+
+                        var yrCounter = 0
+                        if (headcounter === 0) { // header row
+                            var npvHTML =
+                                "<tr><th class='header initCol'>Title</th><th>Image</th><th>Asset Class</th><th>Asset Subclass</th><th>Residents</th><th class='visitor-detail'>Visitors</th><th class='fundingheader'>Funding</th><th class='systemheader'>System</th>";
+                            npvHTML += "</tr>";
+                            $('#npv  > thead').append(npvHTML);
+                            headcounter += 1;
+                        } // header is added. 
+                        // console.log(npvHTML)
+                        // add system row 
+                        var diaglen = cursys.diagrams.length;
+
+                        for (var p = 0; p < diaglen; p++) {
+                            var curdiag = cursys.diagrams[p];
+                            if (curdiag.features.length > 0) {
+                                var curdiagprops = curdiag.features[0].properties;
+                                var curdiagid = curdiag.features[0].properties.diagramid;
+                                var projectorpolicy = curdiag.features[0].properties.areatype;
+                                var diagrowHTMLnpv = "<tr class=" + "'" + cursys.id + "'" +
+                                    "><td class='assetdetails initCol'>" +
+                                    curdiagprops.description + "<br>(" + projectorpolicy + ")</td>" + "<td class=" +
+                                    "'assetimage assetimage-" + curdiagid + "'" + "></td>" + "<td class=" +
+                                    "'assetdetails assetdetails-" + curdiagid + "'" + "></td>" + "<td class=" +
+                                    "'assetdetails assetdetails_subclass-" + curdiagid + "'" + "></td>" + "<td class=" +
+                                    "'assetdetails population-" + curdiagid + "'" + "></td>" + "<td class=" +
+                                    "'assetdetails visitors-" + curdiagid + "'" + "></td>" + "<td class=" +
+                                    "assetdetails funding-" +
+                                    curdiagid + "'" +
+                                    ">" + curdiagprops.fundingtype + "</td>" + "<td class=" + "system-" +
+                                    curdiagid + "'" +
+                                    ">" + cursys.sysname + "</td>";
+                                yrCounter = 0;
+                                diagrowHTMLnpv += "</tr>";
+                                $('#npv > tbody').append(diagrowHTMLnpv);
+                            }
+                        }
                     }
+                }
+                systems = sys;
+            }
 
-                    var resident_visitors_ctx = $("#residents_visitors_chart");
+            function updateWorkerStatus(data) {
+                $("#procstatus").html(" " + data + "% complete");
+            }
 
-                    var res_visitor_chart = new Chart(resident_visitors_ctx, {
-                        type: 'line',
-                        data: {
-                            'labels': labels,
+            function aggregate_capex_opex(investmentdata) {
+                var totalOpex_sga = 0;
+                var totalCapex = 0;
+                var total_NOPAT = 0;
 
-                            'datasets': population_visitors_dataset
-                        },
-                        options: options
+                for (var i = investmentdata.length - 1; i >= 0; i--) {
+                    var current_investment = investmentdata[i];
+                    totalOpex_sga += current_investment['totalMaintainence'];
+                    totalCapex += current_investment['totalInvestment'];
+                    totalIncome = current_investment['totalIncome'];
+                }
+                $("#total_capex").html("EUR " + abbrNum(totalCapex, 2));
+                $("#total_opex_sga").html("EUR " + abbrNum(totalOpex_sga, 2));
+                $("#total_ebtia").html("EUR " + abbrNum(totalIncome, 2));
+
+
+            }
+
+            function populateTableDataInit() {
+                destroyTables();
+                var areaWorker = new Worker('/assets/workers/computeAreas.js');
+                areaWorker.onerror = function (e) {
+                    console.log('Error: Line ' + e.lineno + ' in ' + e.filename + ': ' + e.message);
+                    $("#loadingGIF").addClass('d-none');
+                    humane.log("There was a error in processing, please try again.. ", {
+                        addnCls: 'humane-flatty-log'
                     });
 
-                    var options_secondary = options;
-                    options_secondary['scales']['yAxes']['tooltips'] = {
+                };
+                areaWorker.postMessage({
+                    'systemdetails': JSON.stringify(systemdetail),
+                    'systems': JSON.stringify(systems),
+                    'sequence': JSON.stringify(sequence),
+                    'startyear': JSON.stringify(startyear),
+                    'bounds': bounds['bounds'],
+                    'years': numYears,
+                    'saved_diagram_details': JSON.stringify(saved_diagram_details)
+                });
+                areaWorker.addEventListener('message', function (e) {
+                    if (e.data.mode === 'status') {
+                        updateWorkerStatus(e.data.percentcomplete);
+                    } else {
+
+                        standardizationVar = parseInt(e.data.maxYearlyCost);
+                        // grid = JSON.parse(e.data.grid);
+                        // sysGrids = JSON.parse(e.data.sysGrids);
+
+                        // var gridsize = e.data.gridsize;
+                        // var gridsize = parseFloat(gridsize * gridsize * 100).toFixed(2);
+                        // $("#gridsizecont").html("Note: Grid cell size is " + gridsize + " hectares.");
+                        // diagGrids = JSON.parse(e.data.diagGrids);
+
+                        investmentdata = JSON.parse(e.data.output);
+                        aggregated_investment_data = JSON.parse(e.data.system_aggregates);
+                        var annual_population_jobs = JSON.parse(e.data.annual_population_jobs);
+                        console.log(annual_population_jobs)
+                        showallTables();
+
+                        populateIncomeInvestment(investmentdata);
+                        update_system_investments(aggregated_investment_data);
+                        render_system_investment(aggregated_investment_data);
+                        render_system_totals(aggregated_investment_data);
+                        render_annual_population_jobs(annual_population_jobs);
+
+                        generateSystemCB(systemdetail);
+                        aggregate_capex_opex(investmentdata);
+                        $("#loadingGIF").addClass('d-none');
+                        $('#systemsCBCont').removeClass('d-none');
+                        if (boundaries.features.length > 0) {
+                            updateBoundaries();
+                        }
+                        initializeTables();
+                    }
+                }, false);
+            }
+
+            function render_annual_population_jobs(annual_population_jobs) {
+                var population_visitors_dataset = [];
+                var direct_indirect_jobs_dataset = [];
+                // console.log(annual_population_jobs);
+
+                var visitor_chart_data = {};
+                var population_chart_data = {};
+                population_chart_data['label'] = 'Annual Residents';
+                visitor_chart_data['label'] = 'Annual Visitors';
+                population_chart_data['backgroundColor'] = '#f53794',
+                    visitor_chart_data['backgroundColor'] = '#537bc4',
+                    population_chart_data['data'] = [];
+                visitor_chart_data['data'] = [];
+
+                var tmp_population_data = [];
+                var tmp_visitor_data = [];
+
+                for (var h1 = 0; h1 < numYears; h1++) {
+                    var cYear = (startyear + h1);
+
+                    const cur_year_population = parseInt(annual_population_jobs['annual_residents'][cYear]);
+                    const cur_year_visitor = parseInt(annual_population_jobs['annual_visitors'][cYear]);
+
+                    tmp_population_data.push(cur_year_population);
+                    tmp_visitor_data.push(cur_year_visitor);
+
+                    const cummulative_popuation = tmp_population_data.reduce((a, b) => a + b, 0);
+                    const cummulative_visitors = tmp_visitor_data.reduce((a, b) => a + b, 0);
+
+                    population_chart_data['data'].push(cummulative_popuation);
+                    visitor_chart_data['data'].push(cummulative_visitors);
+                }
+
+                population_chart_data['fill'] = false;
+                visitor_chart_data['fill'] = false;
+
+                population_chart_data['pointBackgroundColor'] = '#4069A6';
+                population_chart_data['pointBorderColor'] = '#4069A6';
+                population_chart_data['borderColor'] = '#4069A6';
+                population_chart_data['backgroundColor'] = '#4069A6';
+                visitor_chart_data['pointBackgroundColor'] = '#C80000';
+                visitor_chart_data['pointBorderColor'] = '#C80000';
+                visitor_chart_data['borderColor'] = '#C80000';
+                visitor_chart_data['backgroundColor'] = '#C80000';
+
+                population_visitors_dataset.push(population_chart_data);
+                population_visitors_dataset.push(visitor_chart_data);
+
+
+                var direct_jobs_data = {};
+                var indirect_jobs_data = {};
+                indirect_jobs_data['label'] = 'Indirect Jobs';
+                indirect_jobs_data['backgroundColor'] = '#f67019';
+                direct_jobs_data['backgroundColor'] = '#4dc9f6';
+                direct_jobs_data['label'] = 'Direct jobs';
+
+
+                indirect_jobs_data['pointBackgroundColor'] = '#812695';
+                indirect_jobs_data['pointBorderColor'] = '#812695';
+                indirect_jobs_data['borderColor'] = '#812695';
+                indirect_jobs_data['backgroundColor'] = '#812695';
+                direct_jobs_data['pointBackgroundColor'] = '#2CA02C';
+                direct_jobs_data['pointBorderColor'] = '#2CA02C';
+                direct_jobs_data['borderColor'] = '#2CA02C';
+                direct_jobs_data['backgroundColor'] = '#2CA02C';
+
+
+                indirect_jobs_data['fill'] = false;
+                direct_jobs_data['fill'] = false;
+
+                indirect_jobs_data['data'] = [];
+                direct_jobs_data['data'] = [];
+
+                var tmp_direct_jobs = [];
+                var tmp_indirect_jobs = [];
+
+                for (var h1 = 0; h1 < numYears; h1++) {
+                    var cYear = (startyear + h1);
+
+                    const cur_year_indirect_jobs = parseInt(annual_population_jobs['annual_indirect_jobs'][cYear]);
+                    const cur_year_direct_jobs = parseInt(annual_population_jobs['annual_direct_jobs'][cYear]);
+
+                    tmp_direct_jobs.push(cur_year_direct_jobs);
+                    tmp_indirect_jobs.push(cur_year_indirect_jobs);
+
+                    const cummulative_direct_jobs = tmp_direct_jobs.reduce((a, b) => a + b, 0);
+                    const cummulative_indirect_jobs = tmp_indirect_jobs.reduce((a, b) => a + b, 0);
+
+                    indirect_jobs_data['data'].push(cummulative_indirect_jobs);
+
+                    direct_jobs_data['data'].push(cummulative_direct_jobs);
+                }
+
+                direct_indirect_jobs_dataset.push(indirect_jobs_data);
+                direct_indirect_jobs_dataset.push(direct_jobs_data);
+
+                var options = {
+                    maintainAspectRatio: false,
+                    title: {
+                        display: false,
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                // This more specific font property overrides the global property
+                                font: {
+                                    size: 12,
+                                    family: "Consolas, monaco, monospace"
+                                }
+                            }
+                        }
+                    },
+                    tooltips: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    hover: {
+                        mode: 'nearest',
+                        intersect: true
+                    },
+                    scales: {
+                        xAxes: [{
+                            display: true,
+                            stacked: true,
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Year'
+                            }
+                        }],
+                        yAxes: [{
+                            display: true,
+                            stacked: true,
+                            ticks: {
+                                beginAtZero: true,
+                                callback: function (value, index, values) {
+                                    if (value > 100000)
+                                        return value / 1e6 + 'M';
+                                    else {
+                                        return value + ' ';
+                                    }
+                                }
+                            },
+                            tooltips: {
+                                callbacks: {
+                                    label: function (tooltipItem, chart) {
+                                        var datasetLabel = chart.datasets[tooltipItem.datasetIndex].label ||
+                                            '';
+                                        // console.log(tooltipItem.yLabel)
+                                        return datasetLabel + number_format(abbrNum(parseInt(tooltipItem
+                                            .yLabel), 2), 2, '.', ' ') + ' people';
+                                    }
+                                }
+                            },
+
+                        }]
+                    }
+                }
+
+                var labels = [];
+                for (var g1 = 0; g1 < numYears; g1++) {
+                    var cYear = (startyear + g1);
+                    labels.push(cYear);
+                }
+
+                var resident_visitors_ctx = $("#residents_visitors_chart");
+
+                var res_visitor_chart = new Chart(resident_visitors_ctx, {
+                    type: 'line',
+                    data: {
+                        'labels': labels,
+
+                        'datasets': population_visitors_dataset
+                    },
+                    options: options
+                });
+
+                var options_secondary = options;
+                options_secondary['scales']['yAxes']['tooltips'] = {
+                    callbacks: {
+                        label: function (tooltipItem, chart) {
+                            var datasetLabel = chart.datasets[tooltipItem.datasetIndex].label || '';
+                            // console.log(tooltipItem.yLabel)
+                            return datasetLabel + number_format(tooltipItem.yLabel, 2, '.', ' ') + ' jobs';
+                        }
+                    }
+                };
+                var labels_secondary = labels;
+
+                var direct_indirect_jobs_ctx = $("#direct_indirect_jobs_chart");
+
+                var direct_indirect_jobs_chart = new Chart(direct_indirect_jobs_ctx, {
+                    type: 'line',
+                    data: {
+                        'labels': labels_secondary,
+                        'fill': false,
+                        'datasets': direct_indirect_jobs_dataset
+                    },
+                    options: options_secondary
+                });
+
+            }
+
+            function render_system_totals(system_totals) {
+
+                var dragOptions = {
+                    animationDuration: 500
+                };
+
+                function hexToRgb(hex) {
+                    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                    return result ? {
+                        r: parseInt(result[1], 16),
+                        g: parseInt(result[2], 16),
+                        b: parseInt(result[3], 16)
+                    } : null;
+                }
+
+                var total_investment_dataset = [];
+
+
+                var labels = [];
+                for (var csys in system_totals) {
+                    var c_system_tot = system_totals[csys];
+                    labels.push(c_system_tot['system_name']);
+                }
+
+
+                var sys_investment_data = [];
+                for (var c_sys in system_totals) {
+                    var c_system_tot = system_totals[c_sys];
+                    sys_investment_data.push(parseInt(c_system_tot['total_investment']));
+
+
+                }
+                total_investment_dataset.push({
+                    'data': sys_investment_data
+                });
+
+
+                var options = {
+                    legend: {
+                        display: false
+                    },
+                    maintainAspectRatio: false,
+                    title: {
+                        display: false,
+                    },
+                    tooltips: {
+                        mode: "index",
+                        intersect: false,
+
                         callbacks: {
                             label: function (tooltipItem, chart) {
-                                var datasetLabel = chart.datasets[tooltipItem.datasetIndex].label || '';
                                 // console.log(tooltipItem.yLabel)
-                                return datasetLabel + number_format(tooltipItem.yLabel, 2, '.', ' ') + ' jobs';
-                            }
-                        }
-                    };
-                    var labels_secondary = labels;
-
-                    var direct_indirect_jobs_ctx = $("#direct_indirect_jobs_chart");
-
-                    var direct_indirect_jobs_chart = new Chart(direct_indirect_jobs_ctx, {
-                        type: 'line',
-                        data: {
-                            'labels': labels_secondary,
-                            'fill': false,
-                            'datasets': direct_indirect_jobs_dataset
+                                return abbrNum(parseInt(tooltipItem.yLabel), 2);
+                            },
                         },
-                        options: options_secondary
-                    });
+                    },
 
-                }
-
-                function render_system_totals(system_totals) {
-
-                    var dragOptions = {
-                        animationDuration: 500
-                    };
-
-                    function hexToRgb(hex) {
-                        var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-                        return result ? {
-                            r: parseInt(result[1], 16),
-                            g: parseInt(result[2], 16),
-                            b: parseInt(result[3], 16)
-                        } : null;
-                    }
-
-                    var total_investment_dataset = [];
-
-
-                    var labels = [];
-                    for (var csys in system_totals) {
-                        var c_system_tot = system_totals[csys];
-                        labels.push(c_system_tot['system_name']);
-                    }
-
-
-                    var sys_investment_data = [];
-                    for (var c_sys in system_totals) {
-                        var c_system_tot = system_totals[c_sys];
-                        sys_investment_data.push(parseInt(c_system_tot['total_investment']));
-
-
-                    }
-                    total_investment_dataset.push({
-                        'data': sys_investment_data
-                    });
-
-
-                    var options = {
+                    plugins: {
                         legend: {
-                            display: false
-                        },
-                        maintainAspectRatio: false,
-                        title: {
-                            display: false,
-                        },
-                        tooltips: {
-                            mode: "index",
-                            intersect: false,
-
-                            callbacks: {
-                                label: function (tooltipItem, chart) {
-                                    // console.log(tooltipItem.yLabel)
-                                    return abbrNum(parseInt(tooltipItem.yLabel), 2);
-                                },
-                            },
-                        },
-
-                        plugins: {
-                            legend: {
-                                labels: {
-                                    // This more specific font property overrides the global property
-                                    font: {
-                                        size: 12,
-                                        family: "Consolas, monaco, monospace"
-                                    }
+                            labels: {
+                                // This more specific font property overrides the global property
+                                font: {
+                                    size: 12,
+                                    family: "Consolas, monaco, monospace"
                                 }
                             }
-                        },
-                        hover: {
-                            mode: "nearest",
-                            intersect: true,
-                        },
-                        scales: {
-                            xAxes: [{
+                        }
+                    },
+                    hover: {
+                        mode: "nearest",
+                        intersect: true,
+                    },
+                    scales: {
+                        xAxes: [{
+                            display: true,
+                            scaleLabel: {
                                 display: true,
-                                scaleLabel: {
-                                    display: true,
 
+                            },
+                        },],
+                        yAxes: [{
+                            display: true,
+                            ticks: {
+                                beginAtZero: true,
+                                callback: function (value, index, values) {
+                                    if (value > 100000) return "EUR " + value / 1e6 + "M";
+                                    else {
+                                        return "EUR " + value;
+                                    }
                                 },
-                            },],
-                            yAxes: [{
-                                display: true,
-                                ticks: {
-                                    beginAtZero: true,
-                                    callback: function (value, index, values) {
-                                        if (value > 100000) return "EUR " + value / 1e6 + "M";
-                                        else {
-                                            return "EUR " + value;
-                                        }
+                            },
+                            tooltips: {
+                                callbacks: {
+                                    label: function (tooltipItem, chart) {
+                                        var datasetLabel =
+                                            chart.datasets[tooltipItem.datasetIndex].label || "";
+                                        return (
+                                            datasetLabel +
+                                            ": EUR " +
+                                            number_format(parseInt(tooltipItem.yLabel), 2, ".", " ")
+                                        );
                                     },
                                 },
-                                tooltips: {
-                                    callbacks: {
-                                        label: function (tooltipItem, chart) {
-                                            var datasetLabel =
-                                                chart.datasets[tooltipItem.datasetIndex].label || "";
-                                            return (
-                                                datasetLabel +
-                                                ": EUR " +
-                                                number_format(parseInt(tooltipItem.yLabel), 2, ".", " ")
-                                            );
-                                        },
-                                    },
-                                },
-                            },],
-                        },
-                    };
-                    var investment_ctx = $("#total_system_investments");
+                            },
+                        },],
+                    },
+                };
+                var investment_ctx = $("#total_system_investments");
 
-                    var myLineChart = new Chart(investment_ctx, {
-                        type: 'bar',
-                        data: {
-                            'labels': labels,
-                            'datasets': total_investment_dataset,
+                var myLineChart = new Chart(investment_ctx, {
+                    type: 'bar',
+                    data: {
+                        'labels': labels,
+                        'datasets': total_investment_dataset,
 
-                        },
+                    },
 
-                        options: options
-                    });
+                    options: options
+                });
 
+            }
+
+            function render_system_investment(system_totals) {
+                var dragOptions = {
+                    animationDuration: 500
+                };
+
+                function hexToRgb(hex) {
+                    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                    return result ? {
+                        r: parseInt(result[1], 16),
+                        g: parseInt(result[2], 16),
+                        b: parseInt(result[3], 16)
+                    } : null;
                 }
 
-                function render_system_investment(system_totals) {
-                    var dragOptions = {
-                        animationDuration: 500
-                    };
+                var total_investment_dataset = [];
+                // console.log(system_totals);
+                for (var csys in system_totals) {
+                    var cur_sys_investment = {};
+                    var c_system_tot = system_totals[csys];
+                    cur_sys_investment['label'] = c_system_tot['system_name'] + ' Capex';
+                    var rgb = hexToRgb(c_system_tot['color']);
+                    cur_sys_investment['backgroundColor'] = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + 0.5 + ')';
+                    cur_sys_investment['data'] = [];
+                    for (var h1 = 0; h1 < numYears; h1++) {
+                        var cYear = (startyear + h1);
 
-                    function hexToRgb(hex) {
-                        var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-                        return result ? {
-                            r: parseInt(result[1], 16),
-                            g: parseInt(result[2], 16),
-                            b: parseInt(result[3], 16)
-                        } : null;
+                        cur_sys_investment['data'].push(parseInt(c_system_tot['yearly_investment'][cYear]));
                     }
+                    // cur_sys_investment['fill'] = false;
+                    total_investment_dataset.push(cur_sys_investment);
+                }
+                var options = {
 
-                    var total_investment_dataset = [];
-                    // console.log(system_totals);
-                    for (var csys in system_totals) {
-                        var cur_sys_investment = {};
-                        var c_system_tot = system_totals[csys];
-                        cur_sys_investment['label'] = c_system_tot['system_name'] + ' Capex';
-                        var rgb = hexToRgb(c_system_tot['color']);
-                        cur_sys_investment['backgroundColor'] = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + 0.5 + ')';
-                        cur_sys_investment['data'] = [];
-                        for (var h1 = 0; h1 < numYears; h1++) {
-                            var cYear = (startyear + h1);
-
-                            cur_sys_investment['data'].push(parseInt(c_system_tot['yearly_investment'][cYear]));
-                        }
-                        // cur_sys_investment['fill'] = false;
-                        total_investment_dataset.push(cur_sys_investment);
-                    }
-                    var options = {
-
-                        plugins: {
-                            legend: {
-                                labels: {
-                                    // This more specific font property overrides the global property
-                                    font: {
-                                        size: 12,
-                                        family: "Consolas, monaco, monospace"
-                                    }
+                    plugins: {
+                        legend: {
+                            labels: {
+                                // This more specific font property overrides the global property
+                                font: {
+                                    size: 12,
+                                    family: "Consolas, monaco, monospace"
                                 }
                             }
-                        },
-                        maintainAspectRatio: false,
-                        title: {
-                            display: false,
-                        },
-                        tooltips: {
-                            mode: "index",
-                            intersect: false,
+                        }
+                    },
+                    maintainAspectRatio: false,
+                    title: {
+                        display: false,
+                    },
+                    tooltips: {
+                        mode: "index",
+                        intersect: false,
 
-                            callbacks: {
-                                label: function (tooltipItem, chart) {
-                                    // console.log(tooltipItem.yLabel)
-                                    return abbrNum(parseInt(tooltipItem.yLabel), 2);
-                                },
+                        callbacks: {
+                            label: function (tooltipItem, chart) {
+                                // console.log(tooltipItem.yLabel)
+                                return abbrNum(parseInt(tooltipItem.yLabel), 2);
                             },
                         },
-                        hover: {
-                            mode: "nearest",
-                            intersect: true,
-                        },
-                        scales: {
-                            xAxes: [{
+                    },
+                    hover: {
+                        mode: "nearest",
+                        intersect: true,
+                    },
+                    scales: {
+                        xAxes: [{
+                            display: true,
+                            scaleLabel: {
                                 display: true,
-                                scaleLabel: {
-                                    display: true,
-                                    labelString: "Year",
+                                labelString: "Year",
+                            },
+                        },],
+                        yAxes: [{
+                            display: true,
+                            ticks: {
+                                beginAtZero: true,
+                                callback: function (value, index, values) {
+                                    if (value > 100000) return "EUR " + value / 1e6 + "M";
+                                    else {
+                                        return "EUR " + value;
+                                    }
                                 },
-                            },],
-                            yAxes: [{
-                                display: true,
-                                ticks: {
-                                    beginAtZero: true,
-                                    callback: function (value, index, values) {
-                                        if (value > 100000) return "EUR " + value / 1e6 + "M";
-                                        else {
-                                            return "EUR " + value;
-                                        }
+                            },
+                            tooltips: {
+                                callbacks: {
+                                    label: function (tooltipItem, chart) {
+                                        var datasetLabel =
+                                            chart.datasets[tooltipItem.datasetIndex].label || "";
+                                        return (
+                                            datasetLabel +
+                                            ": EUR " +
+                                            number_format(parseInt(tooltipItem.yLabel), 2, ".", " ")
+                                        );
                                     },
                                 },
-                                tooltips: {
-                                    callbacks: {
-                                        label: function (tooltipItem, chart) {
-                                            var datasetLabel =
-                                                chart.datasets[tooltipItem.datasetIndex].label || "";
-                                            return (
-                                                datasetLabel +
-                                                ": EUR " +
-                                                number_format(parseInt(tooltipItem.yLabel), 2, ".", " ")
-                                            );
-                                        },
-                                    },
-                                },
-                            },],
-                        },
-                    };
+                            },
+                        },],
+                    },
+                };
 
-                    var labels = [];
+                var labels = [];
+                for (var g1 = 0; g1 < numYears; g1++) {
+                    var cYear = (startyear + g1);
+                    labels.push(cYear);
+                }
+                var investment_ctx = $("#system_investment_chart");
+
+                var myLineChart = new Chart(investment_ctx, {
+                    type: 'line',
+                    data: {
+                        'labels': labels,
+                        'datasets': total_investment_dataset,
+
+                    },
+
+                    options: options
+                });
+
+            }
+
+            function update_system_investments(system_totals) {
+
+                for (var cur_sys in system_totals) {
+                    var c_s = system_totals[cur_sys];
+                    var income = c_s['total_income']
+                    var investment = c_s['total_investment'];
+                    var sga = c_s['total_sga'];
+
+                    var yearly_investment = c_s['yearly_investment'];
+                    var yearly_income = c_s['yearly_income'];
+                    var yearly_sga = c_s['yearly_sga'];
+
+                    $("#" + cur_sys + "-capex").html(abbrNum(investment, 2));
+                    $("#" + cur_sys + "-income").html(abbrNum(income, 2));
+                    $("#" + cur_sys + "-sga").html(abbrNum(sga, 2));
+                    var cashflow = [];
+
+
+                    for (var cur_year in yearly_investment) {
+                        var cur_year_income = c_s['yearly_income'][cur_year];
+                        var cur_year_investment = c_s['yearly_investment'][cur_year];
+                        var cur_year_sga = c_s['yearly_sga'][cur_year];
+                        // console.log(cur_year_income, cur_year_sga, cur_year_investment);
+                        var yearly_cashflow = cur_year_income - cur_year_sga - cur_year_investment;
+                        // console.log(yearly_cashflow)
+                        cashflow.push(yearly_cashflow);
+                    }
+                    // console.log({'depth' :total_investment,'cashFlow' : cashflow});                
+                    if (investment > 0) {
+                        // console.log(c_s);
+                        // console.log( investment, cashflow);
+                        var irr;
+                        try {
+                            irr = compute_irr({
+                                'depth': investment,
+                                'cashFlow': cashflow
+                            });
+                        } catch {
+                            irr = 0;
+                        }
+                        // console.log(irr)
+                        $("#" + cur_sys + "-irr").html(abbrNum(irr, 2));
+
+                    }
+                    // $("#"+ cur_sys+"-ebita").html("-" + abbrNum(e,2));
+
+                    // var ebita = investment - income - sga;
+                    // if (ebita < 0) {
+                    //     var e = ebita_neg = Math.abs(ebita);
+                    //     $("#"+ cur_sys+"-ebita").html("-" + abbrNum(e,2));
+                    // }
+                    // else {
+                    //     $("#"+ cur_sys+"-ebita").html(abbrNum(ebita,2));
+                    // }
+                }
+            }
+
+            function updateBoundaries() {
+                var selectedsystems = [];
+                $('#systemsCB input:checked').each(function () {
+                    selectedsystems.push($(this).attr('id'));
+                });
+                $("#loadingGIF").removeClass('d-none');
+                $("#procstatus").html("Processing..");
+
+                var boundaryWorker = new Worker('/assets/workers/computeBoundaryValue.js');
+                boundaryWorker.onerror = function (e) {
+                    console.log('Error: Line ' + e.lineno + ' in ' + e.filename + ': ' + e.message);
+                    $("#loadingGIF").addClass('d-none');
+                    humane.log("There was a error in boundary computation, please try again.. ", {
+                        addnCls: 'humane-flatty-log'
+                    });
+
+                };
+                // console.log(selectedsystems);
+                boundaryWorker.postMessage({
+                    'design': JSON.stringify(design),
+                    'investmentdata': JSON.stringify(investmentdata),
+                    'selectedsystems': JSON.stringify(selectedsystems),
+                    'boundaries': JSON.stringify(boundaries),
+                    'systemdetails': JSON.stringify(systemdetail),
+                    'number_of_years': numYears,
+                    'saved_diagram_details': JSON.stringify(saved_diagram_details),
+                    'start_year': startyear
+                });
+                boundaryWorker.addEventListener('message', function (e) {
+                    if (e.data.mode === 'status') {
+                        updateWorkerStatus(e.data.percentcomplete);
+                    } else {
+
+                        renderBoundaryInvestmentMap(JSON.parse(e.data.newboundaries), parseInt(e.data.stdVar));
+                        // renderBoundaryInvestmentChart(JSON.parse(e.data.boundaryValue));
+                        boundaryStdVar = parseInt(e.data.stdVar);
+                        // boundaryGeomDetails = JSON.parse(e.data.newboundaries);
+                        boundaryValueDetails = JSON.parse(e.data.boundaryValue);
+                        generate_paracoords_primary_chart(boundaryValueDetails);
+                        generate_paracoords_secondary_chart(boundaryValueDetails);
+                        aggregate_boundary_services_populations(boundaryValueDetails);
+                        $("#loadingGIF").addClass('d-none');
+                    }
+                }, false);
+
+            }
+
+            function highlightFeature(e) {
+                var layer = e.target;
+
+                layer.setStyle({
+                    weight: 5,
+                    color: '#fff',
+                    dashArray: '',
+                    fillOpacity: 0.7
+                });
+
+                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                    layer.bringToFront();
+                }
+
+                info.update(layer.feature.properties);
+                // console.log(layer.feature.properties)
+            }
+
+            function resetHighlight(e) {
+                boundaryChoropleth.resetStyle(e.target);
+            }
+
+            function onEachFeature(feature, layer) {
+                layer.on({
+                    mouseover: highlightFeature,
+                    mouseout: resetHighlight,
+                    click: zoomToFeature
+                });
+            }
+
+            function zoomToFeature(e) {
+                renderBoundaryInvestmentChart(boundaryValueDetails, e.target.feature.properties.id);
+                boundarymap.fitBounds(e.target.getBounds());
+            }
+
+            function onEachFeature(feature, layer) {
+                layer.on({
+                    mouseover: highlightFeature,
+                    mouseout: resetHighlight,
+                    click: zoomToFeature
+                });
+            }
+
+            function renderBoundaryInvestmentMap(newboundaries, stdVar) {
+                boundaryLayer.clearLayers();
+
+                boundaryChoropleth = L.choropleth(newboundaries, {
+                    valueProperty: function (feature) {
+                        var m = feature.properties.totalInvestment;
+                        // m = (m / stdVar) * 100;
+                        return m;
+                    },
+                    scale: ['#f2f0f7', '#cbc9e2', '#9e9ac8', '#756bb1', '#54278f'], //purples
+                    steps: 5,
+                    mode: 'q',
+                    style: {
+                        color: '#fff',
+                        weight: 2,
+                        fillOpacity: 0.5
+                    },
+                    onEachFeature: onEachFeature
+                }).addTo(boundaryLayer);
+
+                boundarymap.fitBounds(boundaryLayer.getBounds());
+            }
+
+            function number_format(number, decimals, dec_point, thousands_sep) {
+                // *     example: number_format(1234.56, 2, ',', ' ');
+                // *     return: '1 234,56'
+                number = (number + '').replace(',', '').replace(' ', '');
+                var n = !isFinite(+number) ? 0 : +number,
+                    prec = !isFinite(+decimals) ? 0 : Math.abs(decimals),
+                    sep = (typeof thousands_sep === 'undefined') ? ',' : thousands_sep,
+                    dec = (typeof dec_point === 'undefined') ? '.' : dec_point,
+                    s = '',
+                    toFixedFix = function (n, prec) {
+                        var k = Math.pow(10, prec);
+                        return '' + Math.round(n * k) / k;
+                    };
+                // Fix for IE parseFloat(0.55).toFixed(0) = 0;
+                s = (prec ? toFixedFix(n, prec) : '' + Math.round(n)).split('.');
+                if (s[0].length > 3) {
+                    s[0] = s[0].replace(/\B(?=(?:\d{3})+(?!\d))/g, sep);
+                }
+                if ((s[1] || '').length < prec) {
+                    s[1] = s[1] || '';
+                    s[1] += new Array(prec - s[1].length + 1).join('0');
+                }
+                return s.join(dec);
+            }
+
+            function renderBoundaryInvestmentChart(boundarydata, boundary_of_interest) {
+
+                var bdata = [];
+                for (var k in boundarydata) {
+                    var v = boundarydata[k];
+                    if (boundary_of_interest == k) {
+                        bdata.push(v);
+                    }
+                }
+                // var bdata = bdata.sort(function (a, b) {
+                //     return parseFloat(a.totalInvestment) - parseFloat(b.totalInvestment);
+                // });
+
+                var all_financials_dataset = [];
+                // var b_investment_dataset = [];
+                // var b_income_dataset = [];
+                // var b_maintainence_dataset = [];
+
+                var labels = [];
+                for (var g1 = 0; g1 < numYears; g1++) {
+                    var cYear = (startyear + g1);
+                    labels.push(cYear);
+                }
+                // console.log(bdata)
+
+
+                var chartColors = {
+                    red: 'rgb(255, 99, 132)',
+                    orange: 'rgb(255, 159, 64)',
+                    yellow: 'rgb(255, 205, 86)',
+                    green: 'rgb(75, 192, 192)',
+                    blue: 'rgb(54, 162, 235)',
+                    purple: 'rgb(153, 102, 255)',
+                    grey: 'rgb(201, 203, 207)'
+                };
+                for (var x = 0; x < bdata.length; x++) {
+                    var curBoundaryValue = bdata[x];
+
+                    var cur_b_investment = {};
+                    var cur_b_income = {};
+                    var cur_b_maintainence = {};
+
+                    var cur_b_roi = {};
+
+                    cur_b_investment['label'] = curBoundaryValue.bname + ' Capex';
+                    cur_b_maintainence['label'] = curBoundaryValue.bname + ' Opex';
+                    cur_b_income['label'] = curBoundaryValue.bname + ' Income';
+                    cur_b_roi['label'] = curBoundaryValue.bname + ' Cash flow';
+                    cur_b_roi['fill'] = false;
+
+                    cur_b_roi['backgroundColor'] = chartColors.purple;
+                    cur_b_roi['borderColor'] = chartColors.purple;
+
+                    cur_b_investment['data'] = [];
+                    cur_b_income['data'] = [];
+                    cur_b_maintainence['data'] = [];
+
+                    cur_b_roi['data'] = [];
+
+                    var cum_income = 0;
+                    var cum_opex = 0;
+                    var cum_total = 0;
+
                     for (var g1 = 0; g1 < numYears; g1++) {
                         var cYear = (startyear + g1);
-                        labels.push(cYear);
+
+                        var cur_year_income = parseInt(curBoundaryValue['income'][cYear]);
+                        var cur_year_investment = parseInt(curBoundaryValue['investment'][cYear]);
+                        var cur_year_maintainence = parseInt(curBoundaryValue['maintainence'][cYear]);
+
+                        cum_total += (cur_year_income - cur_year_maintainence - cur_year_investment);
+
+
+                        cur_b_investment['data'].push(cur_year_investment);
+                        cur_b_income['data'].push(cur_year_income);
+                        cur_b_maintainence['data'].push(-1 * cur_year_maintainence);
+                        cur_b_roi['data'].push(cum_total);
+
                     }
-                    var investment_ctx = $("#system_investment_chart");
 
-                    var myLineChart = new Chart(investment_ctx, {
-                        type: 'line',
-                        data: {
-                            'labels': labels,
-                            'datasets': total_investment_dataset,
-
-                        },
-
-                        options: options
-                    });
-
+                    all_financials_dataset.push(cur_b_investment);
+                    all_financials_dataset.push(cur_b_income);
+                    all_financials_dataset.push(cur_b_maintainence);
+                    all_financials_dataset.push(cur_b_roi);
                 }
 
-                function update_system_investments(system_totals) {
 
-                    for (var cur_sys in system_totals) {
-                        var c_s = system_totals[cur_sys];
-                        var income = c_s['total_income']
-                        var investment = c_s['total_investment'];
-                        var sga = c_s['total_sga'];
-
-                        var yearly_investment = c_s['yearly_investment'];
-                        var yearly_income = c_s['yearly_income'];
-                        var yearly_sga = c_s['yearly_sga'];
-
-                        $("#" + cur_sys + "-capex").html(abbrNum(investment, 2));
-                        $("#" + cur_sys + "-income").html(abbrNum(income, 2));
-                        $("#" + cur_sys + "-sga").html(abbrNum(sga, 2));
-                        var cashflow = [];
-
-
-                        for (var cur_year in yearly_investment) {
-                            var cur_year_income = c_s['yearly_income'][cur_year];
-                            var cur_year_investment = c_s['yearly_investment'][cur_year];
-                            var cur_year_sga = c_s['yearly_sga'][cur_year];
-                            // console.log(cur_year_income, cur_year_sga, cur_year_investment);
-                            var yearly_cashflow = cur_year_income - cur_year_sga - cur_year_investment;
-                            // console.log(yearly_cashflow)
-                            cashflow.push(yearly_cashflow);
-                        }
-                        // console.log({'depth' :total_investment,'cashFlow' : cashflow});                
-                        if (investment > 0) {
-                            // console.log(c_s);
-                            // console.log( investment, cashflow);
-                            var irr;
-                            try {
-                                irr = compute_irr({
-                                    'depth': investment,
-                                    'cashFlow': cashflow
-                                });
-                            } catch {
-                                irr = 0;
+                var options = {
+                    maintainAspectRatio: false,
+                    title: {
+                        display: false,
+                    },
+                    tooltips: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    hover: {
+                        mode: 'nearest',
+                        intersect: true
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                // This more specific font property overrides the global property
+                                font: {
+                                    size: 12,
+                                    family: "Consolas, monaco, monospace"
+                                }
                             }
-                            // console.log(irr)
-                            $("#" + cur_sys + "-irr").html(abbrNum(irr, 2));
-
                         }
-                        // $("#"+ cur_sys+"-ebita").html("-" + abbrNum(e,2));
+                    },
+                    scales: {
+                        xAxes: [{
+                            display: true,
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Year'
+                            }
+                        }],
+                        yAxes: [{
+                            display: true,
+                            ticks: {
+                                beginAtZero: true,
+                                callback: function (value, index, values) {
+                                    if (value > 100000)
+                                        return 'EUR ' + value / 1e6 + 'M';
+                                    else {
+                                        return 'EUR ' + value;
+                                    }
+                                }
+                            },
+                            tooltips: {
+                                callbacks: {
+                                    label: function (tooltipItem, chart) {
+                                        var datasetLabel = chart.datasets[tooltipItem.datasetIndex].label ||
+                                            '';
 
-                        // var ebita = investment - income - sga;
-                        // if (ebita < 0) {
-                        //     var e = ebita_neg = Math.abs(ebita);
-                        //     $("#"+ cur_sys+"-ebita").html("-" + abbrNum(e,2));
-                        // }
-                        // else {
-                        //     $("#"+ cur_sys+"-ebita").html(abbrNum(ebita,2));
-                        // }
+                                        return datasetLabel + ': EUR ' + number_format(parseInt(tooltipItem
+                                            .yLabel), 2, '.', ' ');
+                                    }
+                                }
+                            },
+
+                        }]
                     }
                 }
 
-                function updateBoundaries() {
+                var investment_ctx = $("#boundary_investment_chart");
+                const investment_chart = Chart.getChart("boundary_investment_chart");
+                if (investment_chart){
+                    investment_chart.destroy();
+                }
+
+ 
+
+ 
+                var myLineChart = new Chart(investment_ctx, {
+                    type: 'line',
+                    data: {
+                        'labels': labels,
+                        'datasets': all_financials_dataset
+                    },
+                    options: options
+                });
+
+
+                // var maintainence_ctx = $("#boundary_opex_chart");
+
+                // var myLineChart = new Chart(maintainence_ctx, {
+                //     type: 'line',
+                //     data: {
+                //         'labels': labels,
+                //         'datasets': b_maintainence_dataset
+                //     },
+                //     options: options
+                // });
+                // var income_ctx = $("#boundary_income_chart");
+
+                // var myLineChart = new Chart(income_ctx, {
+                //     type: 'line',
+                //     data: {
+                //         'labels': labels,
+                //         'datasets': b_income_dataset
+                //     },
+                //     options: options
+                // });
+
+            }
+
+            var boundarymap = L.map('boundaryMap', {
+                'zoomControl': true,
+                'dragging': false,
+                'touchZoom': false,
+                'scrollWheelZoom': false,
+                'doubleClickZoom': false,
+                'attributionControl': false
+            });
+            L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://cartodb.com/attributions">CartoDB</a>',
+                maxZoom: 18,
+            }).addTo(boundarymap);
+            var boundaryLayer = L.featureGroup().addTo(boundarymap);
+            var info = L.control();
+
+            info.onAdd = function (map) {
+                this._div = L.DomUtil.create('div', 'info'); // create a div with a class "info"
+                this.update();
+                return this._div;
+            };
+
+            // method that we will use to update the control based on feature properties passed
+            info.update = function (props) {
+
+                this._div.innerHTML = '<h4>Total Investment</h4>' + (props ?
+                    '<b>' + props.bname + '</b><br />' + abbrNum(props.totalInvestment, 2) + ' EUR' :
+                    'Hover over a boundary');
+            };
+
+            info.addTo(boundarymap);
+
+            var bnds = bounds['bounds'];
+            var latLngs = bnds.split(',');
+            var southWest = L.latLng(latLngs[1], latLngs[0]);
+            var northEast = L.latLng(latLngs[3], latLngs[2]);
+            var mB = new L.latLngBounds(southWest, northEast);
+
+            boundarymap.fitBounds(mB);
+
+            var design_layer = L.featureGroup().addTo(boundarymap);
+            var design_layer_features = [];
+            var svgDrawing = SVG('drawing').size(10, 10);
+
+            function miniMapstyleComp(feature) {
+                // console.log(feature.properties)
+                var curFeature = feature.geometry.type;
+                if (curFeature === 'LineString') {
+                    // console.log(feature)
+                    return {
+                        weight: 2,
+                        opacity: .3,
+                        color: feature.properties.color,
+                        dashArray: '',
+
+                    };
+                } else {
+                    // var fillColor = getColor(feature.properties.areatype);
+
+                    if (feature.properties.areatype == 'project') {
+                        var fillColor = feature.properties.color;
+                    } else { // it is policy
+                        var fillPattern = setSVGStyle(feature.properties.color);
+                        var fillColor = fillPattern;
+                    }
+
+                    return {
+                        // fillColor: feature.properties.color,
+                        // fillColor:'#333333',
+                        weight: 1,
+                        stroke: true,
+                        opacity: 0.2,
+                        fillColor: fillColor,
+                        color: feature.properties.color,
+                        dashArray: '',
+                        // opacity: 0.2,
+                        fillOpacity: 0.2
+                    };
+                }
+
+            }
+
+            function setSVGStyle(reqColor) {
+                var pattern = svgDrawing.pattern(6, 6, function (add) {
+                    // add.rect(5, 5).fill(reqColor)
+                    add.line(0, 0, 6, 6).stroke({
+                        width: 1,
+                        color: reqColor
+                    })
+                    add.line(6, 0, 0, 6).stroke({
+                        width: 1,
+                        color: reqColor
+                    })
+                });
+                return pattern.fill();
+            }
+
+            function getColor(type) {
+
+                return type === 'policy' ? '#707070 ' :
+                    type === 'project' ? '#a69695 ' :
+                        type === 'red2' ? '#bd0026' :
+                            type === 'red' ? '#f03b20' :
+                                type === 'yellow' ? '#FFFF00' :
+                                    type === 'green' ? '#74c476' :
+                                        type === 'green2' ? '#31a354' :
+                                            type === 'green3' ? '#006d2c' :
+                                                type === 'purple' ? '#CFACF7' :
+                                                    type === 'purple2' ? '#8D6CBF' :
+                                                        type === 'purple3' ? '#601286' :
+                                                            type === 'orange' ? '#FFA927' :
+                                                                type === 'orange2' ? '#F8872E' :
+                                                                    type === 'orange3' ? '#FC6B0A' :
+                                                                        type === 'constraints' ? '#343434' :
+                                                                            type === 'boundaries' ? '#a6cee3' :
+                                                                                type === 'boundaries2' ? '#b2df8a' :
+                                                                                    '#808080';
+            }
+
+            function updateLens() {
+                var checkedVals;
+                checkedVals = $('.system_cb:checkbox:checked').map(function () {
+                    return parseInt($(this).attr('id'));
+                }).get();
+                updateMapLens(checkedVals);
+            }
+
+            function updateMapLens(selectedList) {
+                // first clear all layers
+                var fList;
+                fList = design_layer_features;
+                design_layer.clearLayers();
+                for (var i = 0, listLen = selectedList.length; i < listLen; i++) {
+                    // Then add the layer if tags match               
+
+                    for (let i2 = 0; i2 < fList.length; i2++) {
+                        const curVector = fList[i2];
+                        if (curVector.reqID == selectedList[i]) {
+                            design_layer.addLayer(curVector.layer);
+                        }
+                    }
+                }
+            }
+
+
+            function onEachFeatureDesignMap(feature, featureLayer) {
+
+                // console.log(feature);
+                const sys_name = feature.properties.sysname;
+                var sys_id = 0;
+                const l_systems = systems;
+                for (let i1 = 0; i1 < l_systems.length; i1++) {
+                    const cur_sys = l_systems[i1];
+                    if (sys_name == cur_sys.sysname) {
+                        sys_id = cur_sys.id;
+                        break;
+                    }
+                }
+                // feature.properties.reqID = sys_id;
+                design_layer_features.push({
+                    'reqID': sys_id,
+                    'layer': featureLayer
+                });
+                design_layer.addLayer(featureLayer);
+            }
+
+
+
+            var design_gj = L.geoJSON(design, {
+                style: miniMapstyleComp,
+                onEachFeature: onEachFeatureDesignMap
+            }).addTo(design_layer);
+
+
+
+            function getDiagramSystemTitle(diagramid) {
+                const ad = systems;
+                var sysName = 'NA';
+                var diagName = 'NA';
+                var syslen = ad.length;
+                loop1:
+                for (var x = 0; x < syslen; x++) {
+                    var cSys = ad[x];
+
+                    var all_current_Diagrams = cSys.diagrams;
+
+                    var allDiaglen = all_current_Diagrams.length;
+
+                    if (allDiaglen > 0) {
+                        loop2: for (var y = 0; y < allDiaglen; y++) {
+                            var cDiag = all_current_Diagrams[y];
+                            var diagram_ID = cDiag.features[0].properties.diagramid;
+                            if (diagramid == diagram_ID) {
+                                sysName = cDiag.features[0].properties.sysname;
+                                diagName = cDiag.features[0].properties.description;
+                                break loop1;
+                            }
+                        }
+                    }
+                }
+                const sys_title = ' | ' + sysName + ' ' + diagName;
+                return sys_title
+            }
+
+            function populateIncomeInvestment(investmentdata) {
+                String.prototype.capitalize = function () {
+                    return this.charAt(0).toUpperCase() + this.slice(1);
+                }
+                var yeildDict = {};
+                const ssd = saved_diagram_details;
+                for (var g = 0; g < investmentdata.length; g++) {
+                    var curInvestmentdata = investmentdata[g];
+                    var diagID = curInvestmentdata['id'];
+                    var totalInvestment = curInvestmentdata['totalInvestment'];
+
+
+                    for (let p1 = 0; p1 < ssd.length; p1++) {
+                        const cur_ele = ssd[p1];
+                        const diag_id = parseInt(cur_ele['key'].split('-')[1]);
+                        if (diag_id == diagID) {
+                            var asset_details;
+                            if (cur_ele.hasOwnProperty('asset_set')) {
+                                asset_details = cur_ele['asset_details'];
+                            } else {
+                                asset_details = {};
+                            }
+                            // var asset_details = cur_ele['asset_details'];
+                            if (Object.keys(asset_details).length === 0 && asset_details.constructor === Object) {
+                                $(".assetdetails-" + diagID).html('Not set');
+                                $(".assetdetails_subclass-" + diagID).html('Not set');
+                                $(".assetimage-" + diagID).html('Not set');
+                                $('.population-' + diagID).html('-');
+                                $('.visitors-' + diagID).html('-');
+                            } else {
+
+                                if (typeof asset_details === 'string' || asset_details instanceof String) {
+                                    asset_details = JSON.parse(asset_details);
+                                }
+                                // console.log(asset_details['metadata']);
+                                const ad = asset_details['class'];
+                                const ad_subclass = asset_details['metadata']['base_asset_subclass'];
+                                $(".assetdetails-" + diagID).html(ad.capitalize());
+                                $(".assetdetails_subclass-" + diagID).html(ad_subclass);
+
+                                if (asset_details['metadata']['representative_image'].length > 0) {
+                                    $(".assetimage-" + diagID).html("<img src='assets/img/asset-images/" + asset_details[
+                                        'metadata']['representative_image'] + "'/>");
+                                }
+                                if (ad === 'hospitality') {
+                                    $('.population-' + diagID).html('-');
+                                    $('.visitors-' + diagID).html(abbrNum((asset_details['metadata'][
+                                        'total_yearly_visitors'
+                                    ]), 2));
+                                } else if (ad == 'residential') {
+                                    $('.population-' + diagID).html(abbrNum(asset_details['metadata'][
+                                        'number_of_people_residential'
+                                    ], 2));
+                                    $('.visitors-' + diagID).html('-');
+                                    $(".assetimage-" + diagID).append("<br><small>Density: " + asset_details['metadata'][
+                                        'current_pop_density'
+                                    ] + " people / km<sup>2</sup></small>")
+                                } else if (ad == 'retail') {
+                                    $('.population-' + diagID).html('-');
+                                    $('.visitors-' + diagID).html(abbrNum(asset_details['metadata'][
+                                        'total_daily_visitors_retail'
+                                    ], 2));
+                                } else if (ad == 'office') {
+                                    $('.population-' + diagID).html('-');
+                                    $('.visitors-' + diagID).html(abbrNum(asset_details['metadata'][
+                                        'total_daily_visitors_office'
+                                    ], 2));
+                                } else if (ad == 'amenity') {
+                                    $('.population-' + diagID).html('-');
+                                    $('.visitors-' + diagID).html(abbrNum(asset_details['metadata'][
+                                        'total_daily_visitors_amenity'
+                                    ], 2));
+                                } else if (ad == 'mixuse') {
+                                    $('.population-' + diagID).html(abbrNum(asset_details['metadata'][
+                                        'number_of_people_residential_mixuse'
+                                    ], 2));
+                                    $('.visitors-' + diagID).html(abbrNum(asset_details['metadata'][
+                                        'total_daily_visitors_retail_mixuse'
+                                    ], 2));
+                                    $(".assetimage-" + diagID).append("<br><small>Density: " + asset_details['metadata'][
+                                        'current_pop_density_mixuse'
+                                    ] + " people / km<sup>2</sup></small>")
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+
+            function generateSystemCB(systems) {
+                $("#systemsCB").html('');
+                for (var x = 0; x < systems.length; x++) {
+                    $('#systemsCB').append('<input class="system_cb" name="sysCB" id=' + "'" + systems[x].id + "'" +
+                        'type="checkbox" checked /> <span class="square c-' + systems[x].syscolor.substring(1)
+                            .toLowerCase() +
+                        '"></span>&nbsp;&nbsp;' + systems[x].sysname + '</input>&nbsp;&nbsp;');
+                }
+
+                $('#systemsCB').click(function () {
                     var selectedsystems = [];
                     $('#systemsCB input:checked').each(function () {
                         selectedsystems.push($(this).attr('id'));
                     });
-                    $("#loadingGIF").removeClass('d-none');
-                    $("#procstatus").html("Processing..");
 
-                    var boundaryWorker = new Worker('/assets/workers/computeBoundaryValue.js');
-                    boundaryWorker.onerror = function (e) {
-                        console.log('Error: Line ' + e.lineno + ' in ' + e.filename + ': ' + e.message);
-                        $("#loadingGIF").addClass('d-none');
-                        humane.log("There was a error in boundary computation, please try again.. ", {
-                            addnCls: 'humane-flatty-log'
-                        });
+                    destroyTables();
 
-                    };
-                    // console.log(selectedsystems);
-                    boundaryWorker.postMessage({
-                        'design': JSON.stringify(design),
-                        'investmentdata': JSON.stringify(investmentdata),
-                        'selectedsystems': JSON.stringify(selectedsystems),
-                        'boundaries': JSON.stringify(boundaries),
-                        'systemdetails': JSON.stringify(systemdetail),
-                        'number_of_years': numYears,
-                        'saved_diagram_details': JSON.stringify(saved_diagram_details),
-                        'start_year': startyear
-                    });
-                    boundaryWorker.addEventListener('message', function (e) {
-                        if (e.data.mode === 'status') {
-                            updateWorkerStatus(e.data.percentcomplete);
-                        } else {
-
-                            renderBoundaryInvestmentMap(JSON.parse(e.data.newboundaries), parseInt(e.data.stdVar));
-                            // renderBoundaryInvestmentChart(JSON.parse(e.data.boundaryValue));
-                            boundaryStdVar = parseInt(e.data.stdVar);
-                            // boundaryGeomDetails = JSON.parse(e.data.newboundaries);
-                            boundaryValueDetails = JSON.parse(e.data.boundaryValue);
-                            generate_paracoords_primary_chart(boundaryValueDetails);
-                            generate_paracoords_secondary_chart(boundaryValueDetails);
-                            aggregate_boundary_services_populations(boundaryValueDetails);
-                            $("#loadingGIF").addClass('d-none');
-                        }
-                    }, false);
-
-                }
-
-                function highlightFeature(e) {
-                    var layer = e.target;
-
-                    layer.setStyle({
-                        weight: 5,
-                        color: '#fff',
-                        dashArray: '',
-                        fillOpacity: 0.7
-                    });
-
-                    if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-                        layer.bringToFront();
+                    if (boundaries.features.length > 0) {
+                        updateBoundaries();
                     }
 
-                    info.update(layer.feature.properties);
-                    // console.log(layer.feature.properties)
-                }
-
-                function resetHighlight(e) {
-                    boundaryChoropleth.resetStyle(e.target);
-                }
-
-                function onEachFeature(feature, layer) {
-                    layer.on({
-                        mouseover: highlightFeature,
-                        mouseout: resetHighlight,
-                        click: zoomToFeature
-                    });
-                }
-
-                function zoomToFeature(e) {
-                    renderBoundaryInvestmentChart(boundaryValueDetails, e.target.feature.properties.id);
-                    boundarymap.fitBounds(e.target.getBounds());
-                }
-
-                function onEachFeature(feature, layer) {
-                    layer.on({
-                        mouseover: highlightFeature,
-                        mouseout: resetHighlight,
-                        click: zoomToFeature
-                    });
-                }
-
-                function renderBoundaryInvestmentMap(newboundaries, stdVar) {
-                    boundaryLayer.clearLayers();
-
-                    boundaryChoropleth = L.choropleth(newboundaries, {
-                        valueProperty: function (feature) {
-                            var m = feature.properties.totalInvestment;
-                            // m = (m / stdVar) * 100;
-                            return m;
-                        },
-                        scale: ['#f2f0f7', '#cbc9e2', '#9e9ac8', '#756bb1', '#54278f'], //purples
-                        steps: 5,
-                        mode: 'q',
-                        style: {
-                            color: '#fff',
-                            weight: 2,
-                            fillOpacity: 0.5
-                        },
-                        onEachFeature: onEachFeature
-                    }).addTo(boundaryLayer);
-
-                    boundarymap.fitBounds(boundaryLayer.getBounds());
-                }
-
-                function number_format(number, decimals, dec_point, thousands_sep) {
-                    // *     example: number_format(1234.56, 2, ',', ' ');
-                    // *     return: '1 234,56'
-                    number = (number + '').replace(',', '').replace(' ', '');
-                    var n = !isFinite(+number) ? 0 : +number,
-                        prec = !isFinite(+decimals) ? 0 : Math.abs(decimals),
-                        sep = (typeof thousands_sep === 'undefined') ? ',' : thousands_sep,
-                        dec = (typeof dec_point === 'undefined') ? '.' : dec_point,
-                        s = '',
-                        toFixedFix = function (n, prec) {
-                            var k = Math.pow(10, prec);
-                            return '' + Math.round(n * k) / k;
-                        };
-                    // Fix for IE parseFloat(0.55).toFixed(0) = 0;
-                    s = (prec ? toFixedFix(n, prec) : '' + Math.round(n)).split('.');
-                    if (s[0].length > 3) {
-                        s[0] = s[0].replace(/\B(?=(?:\d{3})+(?!\d))/g, sep);
-                    }
-                    if ((s[1] || '').length < prec) {
-                        s[1] = s[1] || '';
-                        s[1] += new Array(prec - s[1].length + 1).join('0');
-                    }
-                    return s.join(dec);
-                }
-
-                function renderBoundaryInvestmentChart(boundarydata, boundary_of_interest) {
-
-                    var bdata = [];
-                    for (var k in boundarydata) {
-                        var v = boundarydata[k];
-                        if (boundary_of_interest == k) {
-                            bdata.push(v);
-                        }
-                    }
-                    // var bdata = bdata.sort(function (a, b) {
-                    //     return parseFloat(a.totalInvestment) - parseFloat(b.totalInvestment);
-                    // });
-
-                    var all_financials_dataset = [];
-                    // var b_investment_dataset = [];
-                    // var b_income_dataset = [];
-                    // var b_maintainence_dataset = [];
-
-                    var labels = [];
-                    for (var g1 = 0; g1 < numYears; g1++) {
-                        var cYear = (startyear + g1);
-                        labels.push(cYear);
-                    }
-                    // console.log(bdata)
-
-
-                    var chartColors = {
-                        red: 'rgb(255, 99, 132)',
-                        orange: 'rgb(255, 159, 64)',
-                        yellow: 'rgb(255, 205, 86)',
-                        green: 'rgb(75, 192, 192)',
-                        blue: 'rgb(54, 162, 235)',
-                        purple: 'rgb(153, 102, 255)',
-                        grey: 'rgb(201, 203, 207)'
-                    };
-                    for (var x = 0; x < bdata.length; x++) {
-                        var curBoundaryValue = bdata[x];
-
-                        var cur_b_investment = {};
-                        var cur_b_income = {};
-                        var cur_b_maintainence = {};
-
-                        var cur_b_roi = {};
-
-                        cur_b_investment['label'] = curBoundaryValue.bname + ' Capex';
-                        cur_b_maintainence['label'] = curBoundaryValue.bname + ' Opex';
-                        cur_b_income['label'] = curBoundaryValue.bname + ' Income';
-                        cur_b_roi['label'] = curBoundaryValue.bname + ' Cash flow';
-                        cur_b_roi['fill'] = false;
-
-                        cur_b_roi['backgroundColor'] = chartColors.purple;
-                        cur_b_roi['borderColor'] = chartColors.purple;
-
-                        cur_b_investment['data'] = [];
-                        cur_b_income['data'] = [];
-                        cur_b_maintainence['data'] = [];
-
-                        cur_b_roi['data'] = [];
-
-                        var cum_income = 0;
-                        var cum_opex = 0;
-                        var cum_total = 0;
-
-                        for (var g1 = 0; g1 < numYears; g1++) {
-                            var cYear = (startyear + g1);
-
-                            var cur_year_income = parseInt(curBoundaryValue['income'][cYear]);
-                            var cur_year_investment = parseInt(curBoundaryValue['investment'][cYear]);
-                            var cur_year_maintainence = parseInt(curBoundaryValue['maintainence'][cYear]);
-
-                            cum_total += (cur_year_income - cur_year_maintainence - cur_year_investment);
-
-
-                            cur_b_investment['data'].push(cur_year_investment);
-                            cur_b_income['data'].push(cur_year_income);
-                            cur_b_maintainence['data'].push(-1 * cur_year_maintainence);
-                            cur_b_roi['data'].push(cum_total);
-
-                        }
-
-                        all_financials_dataset.push(cur_b_investment);
-                        all_financials_dataset.push(cur_b_income);
-                        all_financials_dataset.push(cur_b_maintainence);
-                        all_financials_dataset.push(cur_b_roi);
-                    }
-
-
-                    var options = {
-                        maintainAspectRatio: false,
-                        title: {
-                            display: false,
-                        },
-                        tooltips: {
-                            mode: 'index',
-                            intersect: false,
-                        },
-                        hover: {
-                            mode: 'nearest',
-                            intersect: true
-                        },
-                        plugins: {
-                            legend: {
-                                labels: {
-                                    // This more specific font property overrides the global property
-                                    font: {
-                                        size: 12,
-                                        family: "Consolas, monaco, monospace"
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            xAxes: [{
-                                display: true,
-                                scaleLabel: {
-                                    display: true,
-                                    labelString: 'Year'
-                                }
-                            }],
-                            yAxes: [{
-                                display: true,
-                                ticks: {
-                                    beginAtZero: true,
-                                    callback: function (value, index, values) {
-                                        if (value > 100000)
-                                            return 'EUR ' + value / 1e6 + 'M';
-                                        else {
-                                            return 'EUR ' + value;
-                                        }
-                                    }
-                                },
-                                tooltips: {
-                                    callbacks: {
-                                        label: function (tooltipItem, chart) {
-                                            var datasetLabel = chart.datasets[tooltipItem.datasetIndex].label ||
-                                                '';
-
-                                            return datasetLabel + ': EUR ' + number_format(parseInt(tooltipItem
-                                                .yLabel), 2, '.', ' ');
-                                        }
-                                    }
-                                },
-
-                            }]
-                        }
-                    }
-
-                    var investment_ctx = $("#boundary_investment_chart");
-
-                    var myLineChart = new Chart(investment_ctx, {
-                        type: 'line',
-                        data: {
-                            'labels': labels,
-                            'datasets': all_financials_dataset
-                        },
-                        options: options
-                    });
-
-
-                    // var maintainence_ctx = $("#boundary_opex_chart");
-
-                    // var myLineChart = new Chart(maintainence_ctx, {
-                    //     type: 'line',
-                    //     data: {
-                    //         'labels': labels,
-                    //         'datasets': b_maintainence_dataset
-                    //     },
-                    //     options: options
-                    // });
-                    // var income_ctx = $("#boundary_income_chart");
-
-                    // var myLineChart = new Chart(income_ctx, {
-                    //     type: 'line',
-                    //     data: {
-                    //         'labels': labels,
-                    //         'datasets': b_income_dataset
-                    //     },
-                    //     options: options
-                    // });
-
-                }
-
-                var boundarymap = L.map('boundaryMap', {
-                    'zoomControl': true,
-                    'dragging': false,
-                    'touchZoom': false,
-                    'scrollWheelZoom': false,
-                    'doubleClickZoom': false,
-                    'attributionControl': false
-                });
-                L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://cartodb.com/attributions">CartoDB</a>',
-                    maxZoom: 18,
-                }).addTo(boundarymap);
-                var boundaryLayer = L.featureGroup().addTo(boundarymap);
-                var info = L.control();
-
-                info.onAdd = function (map) {
-                    this._div = L.DomUtil.create('div', 'info'); // create a div with a class "info"
-                    this.update();
-                    return this._div;
-                };
-
-                // method that we will use to update the control based on feature properties passed
-                info.update = function (props) {
-
-                    this._div.innerHTML = '<h4>Total Investment</h4>' + (props ?
-                        '<b>' + props.bname + '</b><br />' + abbrNum(props.totalInvestment, 2) + ' EUR' :
-                        'Hover over a boundary');
-                };
-
-                info.addTo(boundarymap);
-
-                var bnds = bounds['bounds'];
-                var latLngs = bnds.split(',');
-                var southWest = L.latLng(latLngs[1], latLngs[0]);
-                var northEast = L.latLng(latLngs[3], latLngs[2]);
-                var mB = new L.latLngBounds(southWest, northEast);
-
-                boundarymap.fitBounds(mB);
-
-                var design_layer = L.featureGroup().addTo(boundarymap);
-                var design_layer_features = [];
-                var svgDrawing = SVG('drawing').size(10, 10);
-
-                function miniMapstyleComp(feature) {
-                    // console.log(feature.properties)
-                    var curFeature = feature.geometry.type;
-                    if (curFeature === 'LineString') {
-                        // console.log(feature)
-                        return {
-                            weight: 2,
-                            opacity: .3,
-                            color: feature.properties.color,
-                            dashArray: '',
-
-                        };
-                    } else {
-                        // var fillColor = getColor(feature.properties.areatype);
-
-                        if (feature.properties.areatype == 'project') {
-                            var fillColor = feature.properties.color;
-                        } else { // it is policy
-                            var fillPattern = setSVGStyle(feature.properties.color);
-                            var fillColor = fillPattern;
-                        }
-
-                        return {
-                            // fillColor: feature.properties.color,
-                            // fillColor:'#333333',
-                            weight: 1,
-                            stroke: true,
-                            opacity: 0.2,
-                            fillColor: fillColor,
-                            color: feature.properties.color,
-                            dashArray: '',
-                            // opacity: 0.2,
-                            fillOpacity: 0.2
-                        };
-                    }
-
-                }
-
-                function setSVGStyle(reqColor) {
-                    var pattern = svgDrawing.pattern(6, 6, function (add) {
-                        // add.rect(5, 5).fill(reqColor)
-                        add.line(0, 0, 6, 6).stroke({
-                            width: 1,
-                            color: reqColor
-                        })
-                        add.line(6, 0, 0, 6).stroke({
-                            width: 1,
-                            color: reqColor
-                        })
-                    });
-                    return pattern.fill();
-                }
-
-                function getColor(type) {
-
-                    return type === 'policy' ? '#707070 ' :
-                        type === 'project' ? '#a69695 ' :
-                            type === 'red2' ? '#bd0026' :
-                                type === 'red' ? '#f03b20' :
-                                    type === 'yellow' ? '#FFFF00' :
-                                        type === 'green' ? '#74c476' :
-                                            type === 'green2' ? '#31a354' :
-                                                type === 'green3' ? '#006d2c' :
-                                                    type === 'purple' ? '#CFACF7' :
-                                                        type === 'purple2' ? '#8D6CBF' :
-                                                            type === 'purple3' ? '#601286' :
-                                                                type === 'orange' ? '#FFA927' :
-                                                                    type === 'orange2' ? '#F8872E' :
-                                                                        type === 'orange3' ? '#FC6B0A' :
-                                                                            type === 'constraints' ? '#343434' :
-                                                                                type === 'boundaries' ? '#a6cee3' :
-                                                                                    type === 'boundaries2' ? '#b2df8a' :
-                                                                                        '#808080';
-                }
-
-                function updateLens() {
-                    var checkedVals;
-                    checkedVals = $('.system_cb:checkbox:checked').map(function () {
-                        return parseInt($(this).attr('id'));
-                    }).get();
-                    updateMapLens(checkedVals);
-                }
-
-                function updateMapLens(selectedList) {
-                    // first clear all layers
-                    var fList;
-                    fList = design_layer_features;
-                    design_layer.clearLayers();
-                    for (var i = 0, listLen = selectedList.length; i < listLen; i++) {
-                        // Then add the layer if tags match               
-
-                        for (let i2 = 0; i2 < fList.length; i2++) {
-                            const curVector = fList[i2];
-                            if (curVector.reqID == selectedList[i]) {
-                                design_layer.addLayer(curVector.layer);
-                            }
-                        }
-                    }
-                }
-
-
-                function onEachFeatureDesignMap(feature, featureLayer) {
-
-                    // console.log(feature);
-                    const sys_name = feature.properties.sysname;
-                    var sys_id = 0;
-                    const l_systems = systems;
-                    for (let i1 = 0; i1 < l_systems.length; i1++) {
-                        const cur_sys = l_systems[i1];
-                        if (sys_name == cur_sys.sysname) {
-                            sys_id = cur_sys.id;
-                            break;
-                        }
-                    }
-                    // feature.properties.reqID = sys_id;
-                    design_layer_features.push({
-                        'reqID': sys_id,
-                        'layer': featureLayer
-                    });
-                    design_layer.addLayer(featureLayer);
-                }
-
-
-
-                var design_gj = L.geoJSON(design, {
-                    style: miniMapstyleComp,
-                    onEachFeature: onEachFeatureDesignMap
-                }).addTo(design_layer);
-
-
-
-                function getDiagramSystemTitle(diagramid) {
-                    const ad = systems;
-                    var sysName = 'NA';
-                    var diagName = 'NA';
-                    var syslen = ad.length;
-                    loop1:
-                    for (var x = 0; x < syslen; x++) {
-                        var cSys = ad[x];
-
-                        var all_current_Diagrams = cSys.diagrams;
-
-                        var allDiaglen = all_current_Diagrams.length;
-
-                        if (allDiaglen > 0) {
-                            loop2: for (var y = 0; y < allDiaglen; y++) {
-                                var cDiag = all_current_Diagrams[y];
-                                var diagram_ID = cDiag.features[0].properties.diagramid;
-                                if (diagramid == diagram_ID) {
-                                    sysName = cDiag.features[0].properties.sysname;
-                                    diagName = cDiag.features[0].properties.description;
-                                    break loop1;
-                                }
-                            }
-                        }
-                    }
-                    const sys_title = ' | ' + sysName + ' ' + diagName;
-                    return sys_title
-                }
-
-                function populateIncomeInvestment(investmentdata) {
-                    String.prototype.capitalize = function () {
-                        return this.charAt(0).toUpperCase() + this.slice(1);
-                    }
-                    var yeildDict = {};
-                    const ssd = saved_diagram_details;
-                    for (var g = 0; g < investmentdata.length; g++) {
-                        var curInvestmentdata = investmentdata[g];
-                        var diagID = curInvestmentdata['id'];
-                        var totalInvestment = curInvestmentdata['totalInvestment'];
-
-
-                        for (let p1 = 0; p1 < ssd.length; p1++) {
-                            const cur_ele = ssd[p1];
-                            const diag_id = parseInt(cur_ele['key'].split('-')[1]);
-                            if (diag_id == diagID) {
-                                var asset_details;
-                                if (cur_ele.hasOwnProperty('asset_set')) {
-                                    asset_details = cur_ele['asset_details'];
-                                } else {
-                                    asset_details = {};
-                                }
-                                // var asset_details = cur_ele['asset_details'];
-                                if (Object.keys(asset_details).length === 0 && asset_details.constructor === Object) {
-                                    $(".assetdetails-" + diagID).html('Not set');
-                                    $(".assetdetails_subclass-" + diagID).html('Not set');
-                                    $(".assetimage-" + diagID).html('Not set');
-                                    $('.population-' + diagID).html('-');
-                                    $('.visitors-' + diagID).html('-');
-                                } else {
-
-                                    if (typeof asset_details === 'string' || asset_details instanceof String) {
-                                        asset_details = JSON.parse(asset_details);
-                                    }
-                                    // console.log(asset_details['metadata']);
-                                    const ad = asset_details['class'];
-                                    const ad_subclass = asset_details['metadata']['base_asset_subclass'];
-                                    $(".assetdetails-" + diagID).html(ad.capitalize());
-                                    $(".assetdetails_subclass-" + diagID).html(ad_subclass);
-
-                                    if (asset_details['metadata']['representative_image'].length > 0) {
-                                        $(".assetimage-" + diagID).html("<img src='assets/img/asset-images/" + asset_details[
-                                            'metadata']['representative_image'] + "'/>");
-                                    }
-                                    if (ad === 'hospitality') {
-                                        $('.population-' + diagID).html('-');
-                                        $('.visitors-' + diagID).html(abbrNum((asset_details['metadata'][
-                                            'total_yearly_visitors'
-                                        ]), 2));
-                                    } else if (ad == 'residential') {
-                                        $('.population-' + diagID).html(abbrNum(asset_details['metadata'][
-                                            'number_of_people_residential'
-                                        ], 2));
-                                        $('.visitors-' + diagID).html('-');
-                                        $(".assetimage-" + diagID).append("<br><small>Density: " + asset_details['metadata'][
-                                            'current_pop_density'
-                                        ] + " people / km<sup>2</sup></small>")
-                                    } else if (ad == 'retail') {
-                                        $('.population-' + diagID).html('-');
-                                        $('.visitors-' + diagID).html(abbrNum(asset_details['metadata'][
-                                            'total_daily_visitors_retail'
-                                        ], 2));
-                                    } else if (ad == 'office') {
-                                        $('.population-' + diagID).html('-');
-                                        $('.visitors-' + diagID).html(abbrNum(asset_details['metadata'][
-                                            'total_daily_visitors_office'
-                                        ], 2));
-                                    } else if (ad == 'amenity') {
-                                        $('.population-' + diagID).html('-');
-                                        $('.visitors-' + diagID).html(abbrNum(asset_details['metadata'][
-                                            'total_daily_visitors_amenity'
-                                        ], 2));
-                                    } else if (ad == 'mixuse') {
-                                        $('.population-' + diagID).html(abbrNum(asset_details['metadata'][
-                                            'number_of_people_residential_mixuse'
-                                        ], 2));
-                                        $('.visitors-' + diagID).html(abbrNum(asset_details['metadata'][
-                                            'total_daily_visitors_retail_mixuse'
-                                        ], 2));
-                                        $(".assetimage-" + diagID).append("<br><small>Density: " + asset_details['metadata'][
-                                            'current_pop_density_mixuse'
-                                        ] + " people / km<sup>2</sup></small>")
-                                    }
-
-                                }
-                            }
-                        }
-                    }
-                }
-
-                function generateSystemCB(systems) {
-                    $("#systemsCB").html('');
-                    for (var x = 0; x < systems.length; x++) {
-                        $('#systemsCB').append('<input class="system_cb" name="sysCB" id=' + "'" + systems[x].id + "'" +
-                            'type="checkbox" checked /> <span class="square c-' + systems[x].syscolor.substring(1)
-                                .toLowerCase() +
-                            '"></span>&nbsp;&nbsp;' + systems[x].sysname + '</input>&nbsp;&nbsp;');
-                    }
-
-                    $('#systemsCB').click(function () {
-                        var selectedsystems = [];
-                        $('#systemsCB input:checked').each(function () {
-                            selectedsystems.push($(this).attr('id'));
-                        });
-
-                        destroyTables();
-
-                        if (boundaries.features.length > 0) {
-                            updateBoundaries();
-                        }
-
-                        $('#npv > tbody > tr').each(function () {
-                            var cls = $(this).attr('class');
-                            var classWhitelist = ['blank'];
-                            if (jQuery.inArray(cls, classWhitelist) == -1) { // it is not in whitelist
-                                if (jQuery.inArray(cls, selectedsystems) == -
-                                    1) { // this class is not in whilte list
-                                    // hide it.
-                                    $(this).addClass('d-none');
-                                } else {
-                                    // show it.
-                                    $(this).removeClass('d-none');
-                                }
-                            }
-                        });
-
-                        initializeTables();
-                        updateLens();
-                        // hide
-                    });
-                }
-                initpercentSliders();
-                generateInitTables();
-                populateTableDataInit();
-                // computeDCFNPV();
-                function showallTables() {
                     $('#npv > tbody > tr').each(function () {
-                        $(this).removeClass('d-none');
-                    });
+                        var cls = $(this).attr("class").split(/\s+/);
+                        var classWhitelist = ['blank'];
+                       
+                            if (jQuery.inArray(cls[0], selectedsystems) == -
+                                1) { // this class is not in whilte list
+                                // hide it.
+                                if ($(this).hasClass('d-none')){
 
-                }
-
-                function initializeTables() {
-                    var tableGenerator = function (domid) {
-                        var groupColumn = 7;
-                        var t = $('#' + domid).DataTable({
-                            "columnDefs": [{
-                                "visible": false,
-                                "targets": groupColumn
-                            }],
-                            searching: false,
-                            fixedHeader: {
-                                header: false,
-                                footer: true
-                            },
-                            "order": [
-                                [groupColumn, 'asc']
-                            ],
-                            "drawCallback": function (settings) {
-                                var api = this.api();
-                                var rows = api.rows({
-                                    page: 'current'
-                                }).nodes();
-                                var last = null;
-
-                                api.column(groupColumn, {
-                                    page: 'current'
-                                }).data().each(function (group, i) {
-                                    if (last !== group) {
-                                        $(rows).eq(i).before(
-                                            '<tr class="group"><td colspan="">' + group +
-                                            '</td></tr>'
-                                        );
-
-                                        last = group;
-                                    }
-                                });
+                                } else {
+                                $(this).addClass('d-none');
+                                }
+                            } else {
+                                // show it.
+                                if ($(this).hasClass('d-none')){
+                                $(this).removeClass('d-none');
+                                }
                             }
-                        });
-                        return t;
-                    }
-                    npv_table = tableGenerator('npv');
-                }
-
-                function initialize_system_table(system_id) {
-                    if ($.fn.DataTable.isDataTable('#system_specific_details_table')) {
-                        diag_fin_details_table.destroy();
-                    }
-                    $("#system_specific_details_table").find("tbody>tr").remove();
-                    const i_data = investmentdata;
-                    const filtered_systems = i_data.filter(function (item) {
-                        return item.sysid == system_id;
-                    });
-                    var sorted_systems = filtered_systems.sort(function (a, b) {
-                        return parseFloat(a.totalInvestment) - parseFloat(b.totalInvestment);
+                        
                     });
 
-                    var ss_len = sorted_systems.length;
-                    for (var x1 = 0; x1 < ss_len; x1++) {
-                        var cur_diagram = sorted_systems[x1];
-                        var html = "<tr>";
-                        html += "<td>" + cur_diagram.title + "</td>" + "<td data-sort=" + cur_diagram.totalInvestment + '>' +
-                            abbrNum(cur_diagram.totalInvestment, 2) +
-                            "</td>" + "<td data-sort=" + cur_diagram.totalIncome + '>' + abbrNum(cur_diagram.totalIncome, 2) +
-                            "</td>" + "<td data-sort=" + cur_diagram.totalMaintainence + '>' + abbrNum(cur_diagram
-                                .totalMaintainence, 2) + "</td>" + "</tr>";
-                        $("#system_specific_details_table > tbody").append(html);
-                    }
-                    diag_fin_details_table = $('#system_specific_details_table').DataTable({
-                        "bLengthChange": false
-                    });
-                }
+                    initializeTables();
+                    updateLens();
+                    // hide
+                });
+            }
+            initpercentSliders();
+            generateInitTables();
+            populateTableDataInit();
+            // computeDCFNPV();
+            function showallTables() {
+                $('#npv > tbody > tr').each(function () {
+                    $(this).removeClass('d-none');
+                });
 
-                function destroyTables() {
-                    if ($.fn.DataTable.isDataTable('#npv')) {
-                        npv_table.destroy();
-                    }
-                }
+            }
 
-                function generate_paracoords_primary_chart(boundary_details) {
-                    // const boundary_details = boundaryValueDetails;
-                    // console.log(boundary_details)
-                    var data = [];
-                    for (const bnd_id in boundary_details) {
-                        if (boundary_details.hasOwnProperty(bnd_id)) {
-                            const cur_boundary = boundary_details[bnd_id];
-                            // console.log(cur_boundary)
-                            var cur_bnd_data = {
-                                'Boundary name': cur_boundary.bname,
-                                'Residents': cur_boundary.total_population,
-                                'Daily Visitors': cur_boundary.total_visitors,
-                                'Direct Employment': cur_boundary.total_direct_employment,
-                                'Indirect Employment': cur_boundary.total_indirect_employment
-                            };
-                            data.push(cur_bnd_data);
+            function initializeTables() {
+                var tableGenerator = function (domid) {
+                    var groupColumn = 7;
+                    var t = $('#' + domid).DataTable({
+                        "columnDefs": [{
+                            "visible": false,
+                            "targets": groupColumn
+                        }],
+                        searching: false,
+                        fixedHeader: {
+                            header: false,
+                            footer: true
+                        },
+                        "order": [
+                            [groupColumn, 'asc']
+                        ],
+                        "drawCallback": function (settings) {
+                            var api = this.api();
+                            var rows = api.rows({
+                                page: 'current'
+                            }).nodes();
+                            var last = null;
+
+                            api.column(groupColumn, {
+                                page: 'current'
+                            }).data().each(function (group, i) {
+                                if (last !== group) {
+                                    $(rows).eq(i).before(
+                                        '<tr class="group"><td colspan="">' + group +
+                                        '</td></tr>'
+                                    );
+
+                                    last = group;
+                                }
+                            });
                         }
+                    });
+                    return t;
+                }
+                npv_table = tableGenerator('npv');
+            }
+
+            function initialize_system_table(system_id) {
+                if ($.fn.DataTable.isDataTable('#system_specific_details_table')) {
+                    diag_fin_details_table.destroy();
+                }
+                $("#system_specific_details_table").find("tbody>tr").remove();
+                const i_data = investmentdata;
+                const filtered_systems = i_data.filter(function (item) {
+                    return item.sysid == system_id;
+                });
+                var sorted_systems = filtered_systems.sort(function (a, b) {
+                    return parseFloat(a.totalInvestment) - parseFloat(b.totalInvestment);
+                });
+
+                var ss_len = sorted_systems.length;
+                for (var x1 = 0; x1 < ss_len; x1++) {
+                    var cur_diagram = sorted_systems[x1];
+                    var html = "<tr>";
+                    html += "<td>" + cur_diagram.title + "</td>" + "<td data-sort=" + cur_diagram.totalInvestment + '>' +
+                        abbrNum(cur_diagram.totalInvestment, 2) +
+                        "</td>" + "<td data-sort=" + cur_diagram.totalIncome + '>' + abbrNum(cur_diagram.totalIncome, 2) +
+                        "</td>" + "<td data-sort=" + cur_diagram.totalMaintainence + '>' + abbrNum(cur_diagram
+                            .totalMaintainence, 2) + "</td>" + "</tr>";
+                    $("#system_specific_details_table > tbody").append(html);
+                }
+                diag_fin_details_table = $('#system_specific_details_table').DataTable({
+                    "bLengthChange": false
+                });
+            }
+
+            function destroyTables() {
+                if ($.fn.DataTable.isDataTable('#npv')) {
+                    npv_table.destroy();
+                }
+            }
+
+            function generate_paracoords_primary_chart(boundary_details) {
+                // const boundary_details = boundaryValueDetails;
+                // console.log(boundary_details)
+                var data = [];
+                for (const bnd_id in boundary_details) {
+                    if (boundary_details.hasOwnProperty(bnd_id)) {
+                        const cur_boundary = boundary_details[bnd_id];
+                        // console.log(cur_boundary)
+                        var cur_bnd_data = {
+                            'Boundary name': cur_boundary.bname,
+                            'Residents': cur_boundary.total_population,
+                            'Daily Visitors': cur_boundary.total_visitors,
+                            'Direct Employment': cur_boundary.total_direct_employment,
+                            'Indirect Employment': cur_boundary.total_indirect_employment
+                        };
+                        data.push(cur_bnd_data);
                     }
-                    d3.select('#paracoords_primary').html("");
-                    $("#parcoords_primary_grid").empty();
-                    const data_len = Object.keys(data).length;
+                }
+                d3.select('#paracoords_primary').html("");
+                $("#parcoords_primary_grid").empty();
+                const data_len = Object.keys(data).length;
 
 
-                    // const colrs =  [ "rgb(250, 250, 110)","rgb(197, 236, 113)","rgb(148, 220, 121)","rgb(105, 201, 129)","rgb(66, 181, 136)", "rgb(35, 159, 138)","rgb(19, 137, 134)","rgb(26, 115, 124)","rgb(37, 93, 108)","rgb(42, 72, 88)"];
+                // const colrs =  [ "rgb(250, 250, 110)","rgb(197, 236, 113)","rgb(148, 220, 121)","rgb(105, 201, 129)","rgb(66, 181, 136)", "rgb(35, 159, 138)","rgb(19, 137, 134)","rgb(26, 115, 124)","rgb(37, 93, 108)","rgb(42, 72, 88)"];
 
-                    var green_to_blue = d3.scale.linear()
-                        .domain([1, Object.keys(boundary_details).length]);
-                    // .range(colrs)
-                    // .interpolate(d3.interpolateHcl);
+                var green_to_blue = d3.scale.linear()
+                    .domain([1, Object.keys(boundary_details).length]);
+                // .range(colrs)
+                // .interpolate(d3.interpolateHcl);
 
-                    var color = function (d) {
-                        return green_to_blue(d['Residents']);
-                    };
+                var color = function (d) {
+                    return green_to_blue(d['Residents']);
+                };
 
-                    var parcoords = d3.parcoords()("#paracoords_primary")
-                        .color(color)
-                        .alpha(0.4);
+                var parcoords = d3.parcoords()("#paracoords_primary")
+                    .color(color)
+                    .alpha(0.4);
 
-                    // load csv file and create the chart
+                // load csv file and create the chart
 
-                    parcoords
-                        .data(data)
-                        .render()
-                        .brushMode("1D-axes"); // enable brushing
+                parcoords
+                    .data(data)
+                    .render()
+                    .brushMode("1D-axes"); // enable brushing
 
-                    // create data table, row hover highlighting
-                    var grid = d3.divgrid();
+                // create data table, row hover highlighting
+                var grid = d3.divgrid();
+                d3.select("#parcoords_primary_grid")
+                    .datum(data.slice(0, data_len))
+                    .call(grid)
+                    .selectAll(".divgrid_row")
+                    .on({
+                        "mouseover": function (d) {
+                            parcoords.highlight([d])
+                        },
+                        "mouseout": parcoords.unhighlight
+                    });
+
+                // update data table on brush event
+                parcoords.on("brush", function (d) {
                     d3.select("#parcoords_primary_grid")
-                        .datum(data.slice(0, data_len))
+                        .datum(d.slice(0, data_len))
                         .call(grid)
                         .selectAll(".divgrid_row")
                         .on({
@@ -1854,127 +1881,127 @@
                             },
                             "mouseout": parcoords.unhighlight
                         });
+                });
 
-                    // update data table on brush event
-                    parcoords.on("brush", function (d) {
-                        d3.select("#parcoords_primary_grid")
-                            .datum(d.slice(0, data_len))
-                            .call(grid)
-                            .selectAll(".divgrid_row")
-                            .on({
-                                "mouseover": function (d) {
-                                    parcoords.highlight([d])
-                                },
-                                "mouseout": parcoords.unhighlight
-                            });
+
+
+            }
+
+            function aggregate_boundary_services_populations(boundary_details) {
+                // console.log(boundary_details);
+                var total_population = 0;
+                var total_visitors = 0;
+                var total_direct_employment = 0;
+                var total_indirect_employment = 0;
+
+                var annual_electricity_demand = 0;
+                var hospital_beds = 0;
+                var annual_water_demand = 0;
+                var annual_sewage = 0;
+                var daily_water_demand;
+                var daily_sewage_demand
+                var total_fire_personnel = 0;
+                var total_police_personnel = 0;
+                for (const bnd_id in boundary_details) {
+                    if (boundary_details.hasOwnProperty(bnd_id)) {
+                        const cur_boundary = boundary_details[bnd_id];
+                        total_population += parseInt(cur_boundary.total_population);
+                        total_visitors += parseInt(cur_boundary.total_visitors);
+                        total_direct_employment += parseInt(cur_boundary.total_direct_employment);
+                        total_indirect_employment += parseInt(cur_boundary.total_indirect_employment);
+
+                        annual_electricity_demand += parseInt(cur_boundary['services']['electricity_demand']);
+                        annual_water_demand += parseInt(cur_boundary['services']['water_demand']);
+
+                        annual_sewage += parseInt(cur_boundary['services']['sewage_demand']);
+                        hospital_beds = parseInt(cur_boundary['services']['hospital_beds']);
+                        total_fire_personnel += parseInt(cur_boundary['services']['fire_personnel']);
+                        total_police_personnel += parseInt(cur_boundary['services']['police_stations']);
+                    }
+                }
+                daily_water_demand = (annual_water_demand / 365) * 1000;
+                // daily_sewage_demand = (annual_sewage / 365);
+
+                $("#total_population").html(abbrNum(total_population, 0) + ' ');
+                $("#total_visitors").html(abbrNum(total_visitors, 0) + ' ');
+                $("#total_direct_employment").html(abbrNum(total_direct_employment, 0) + ' ');
+                $("#total_indirect_employment").html(abbrNum(total_indirect_employment, 0) + ' ');
+                $("#total_electricity_demand").html(abbrNum(annual_electricity_demand, 2) + ' ');
+                $("#total_water_demand").html(abbrNum(daily_water_demand, 2) + ' ');
+                $("#total_sewage_demand").html(abbrNum(annual_sewage, 2) + ' ');
+                $("#total_fire_personnel").html(abbrNum(total_fire_personnel, 2) + ' ');
+                $("#total_police_personnel").html(abbrNum(total_police_personnel, 2) + ' ');
+                $("#total_hosptial_beds").html(abbrNum(hospital_beds, 2) + ' ');
+
+            }
+
+            function generate_paracoords_secondary_chart(boundary_details) {
+                // const boundary_details = boundaryValueDetails;
+
+                var data = [];
+                for (const bnd_id in boundary_details) {
+                    if (boundary_details.hasOwnProperty(bnd_id)) {
+                        const cur_boundary = boundary_details[bnd_id];
+
+                        var cur_bnd_data = {
+                            'Boundary name': cur_boundary.bname,
+                            'Electricity Demand (MW)': cur_boundary['services']['electricity_demand'],
+                            'Fire Personnel': cur_boundary['services']['fire_personnel'],
+                            'Hospital Beds': cur_boundary['services']['hospital_beds'],
+                            'Sewage (m3)': cur_boundary['services']['sewage_demand'],
+                            'Water (m3)': cur_boundary['services']['water_demand'],
+                        };
+                        data.push(cur_bnd_data);
+                    }
+                }
+
+                const data_len = Object.keys(data).length;
+
+                d3.select('#paracoords_secondary').html("");
+                $("#parcoords_secondary_grid").empty();
+
+                const colrs = ["rgb(250, 250, 110)", "rgb(197, 236, 113)", "rgb(148, 220, 121)", "rgb(105, 201, 129)",
+                    "rgb(66, 181, 136)", "rgb(35, 159, 138)", "rgb(19, 137, 134)", "rgb(26, 115, 124)",
+                    "rgb(37, 93, 108)", "rgb(42, 72, 88)"
+                ];
+
+                var green_to_blue = d3.scale.linear()
+                    .domain([1, Object.keys(boundary_details).length])
+                    .range(colrs)
+                    .interpolate(d3.interpolateHcl);
+
+                var color = function (d) {
+                    return green_to_blue(d['Electricity Demand (MW)']);
+                };
+
+                var parcoords = d3.parcoords()("#paracoords_secondary")
+                    .color(color)
+                    .alpha(0.4);
+
+                // load csv file and create the chart
+
+                parcoords
+                    .data(data)
+                    .render()
+                    .brushMode("1D-axes"); // enable brushing
+
+                // create data table, row hover highlighting
+                var grid = d3.divgrid();
+                d3.select("#parcoords_secondary_grid")
+                    .datum(data.slice(0, data_len))
+                    .call(grid)
+                    .selectAll(".divgrid_row")
+                    .on({
+                        "mouseover": function (d) {
+                            parcoords.highlight([d])
+                        },
+                        "mouseout": parcoords.unhighlight
                     });
 
-
-
-                }
-
-                function aggregate_boundary_services_populations(boundary_details) {
-                    // console.log(boundary_details);
-                    var total_population = 0;
-                    var total_visitors = 0;
-                    var total_direct_employment = 0;
-                    var total_indirect_employment = 0;
-
-                    var annual_electricity_demand = 0;
-                    var hospital_beds = 0;
-                    var annual_water_demand = 0;
-                    var annual_sewage = 0;
-                    var daily_water_demand;
-                    var daily_sewage_demand
-                    var total_fire_personnel = 0;
-                    var total_police_personnel = 0;
-                    for (const bnd_id in boundary_details) {
-                        if (boundary_details.hasOwnProperty(bnd_id)) {
-                            const cur_boundary = boundary_details[bnd_id];
-                            total_population += parseInt(cur_boundary.total_population);
-                            total_visitors += parseInt(cur_boundary.total_visitors);
-                            total_direct_employment += parseInt(cur_boundary.total_direct_employment);
-                            total_indirect_employment += parseInt(cur_boundary.total_indirect_employment);
-
-                            annual_electricity_demand += parseInt(cur_boundary['services']['electricity_demand']);
-                            annual_water_demand += parseInt(cur_boundary['services']['water_demand']);
-
-                            annual_sewage += parseInt(cur_boundary['services']['sewage_demand']);
-                            hospital_beds = parseInt(cur_boundary['services']['hospital_beds']);
-                            total_fire_personnel += parseInt(cur_boundary['services']['fire_personnel']);
-                            total_police_personnel += parseInt(cur_boundary['services']['police_stations']);
-                        }
-                    }
-                    daily_water_demand = (annual_water_demand / 365) * 1000;
-                    // daily_sewage_demand = (annual_sewage / 365);
-
-                    $("#total_population").html(abbrNum(total_population, 0) + ' ');
-                    $("#total_visitors").html(abbrNum(total_visitors, 0) + ' ');
-                    $("#total_direct_employment").html(abbrNum(total_direct_employment, 0) + ' ');
-                    $("#total_indirect_employment").html(abbrNum(total_indirect_employment, 0) + ' ');
-                    $("#total_electricity_demand").html(abbrNum(annual_electricity_demand, 2) + ' ');
-                    $("#total_water_demand").html(abbrNum(daily_water_demand, 2) + ' ');
-                    $("#total_sewage_demand").html(abbrNum(annual_sewage, 2) + ' ');
-                    $("#total_fire_personnel").html(abbrNum(total_fire_personnel, 2) + ' ');
-                    $("#total_police_personnel").html(abbrNum(total_police_personnel, 2) + ' ');
-                    $("#total_hosptial_beds").html(abbrNum(hospital_beds, 2) + ' ');
-
-                }
-
-                function generate_paracoords_secondary_chart(boundary_details) {
-                    // const boundary_details = boundaryValueDetails;
-
-                    var data = [];
-                    for (const bnd_id in boundary_details) {
-                        if (boundary_details.hasOwnProperty(bnd_id)) {
-                            const cur_boundary = boundary_details[bnd_id];
-
-                            var cur_bnd_data = {
-                                'Boundary name': cur_boundary.bname,
-                                'Electricity Demand (MW)': cur_boundary['services']['electricity_demand'],
-                                'Fire Personnel': cur_boundary['services']['fire_personnel'],
-                                'Hospital Beds': cur_boundary['services']['hospital_beds'],
-                                'Sewage (m3)': cur_boundary['services']['sewage_demand'],
-                                'Water (m3)': cur_boundary['services']['water_demand'],
-                            };
-                            data.push(cur_bnd_data);
-                        }
-                    }
-
-                    const data_len = Object.keys(data).length;
-
-                    d3.select('#paracoords_secondary').html("");
-                    $("#parcoords_secondary_grid").empty();
-
-                    const colrs = ["rgb(250, 250, 110)", "rgb(197, 236, 113)", "rgb(148, 220, 121)", "rgb(105, 201, 129)",
-                        "rgb(66, 181, 136)", "rgb(35, 159, 138)", "rgb(19, 137, 134)", "rgb(26, 115, 124)",
-                        "rgb(37, 93, 108)", "rgb(42, 72, 88)"
-                    ];
-
-                    var green_to_blue = d3.scale.linear()
-                        .domain([1, Object.keys(boundary_details).length])
-                        .range(colrs)
-                        .interpolate(d3.interpolateHcl);
-
-                    var color = function (d) {
-                        return green_to_blue(d['Electricity Demand (MW)']);
-                    };
-
-                    var parcoords = d3.parcoords()("#paracoords_secondary")
-                        .color(color)
-                        .alpha(0.4);
-
-                    // load csv file and create the chart
-
-                    parcoords
-                        .data(data)
-                        .render()
-                        .brushMode("1D-axes"); // enable brushing
-
-                    // create data table, row hover highlighting
-                    var grid = d3.divgrid();
+                // update data table on brush event
+                parcoords.on("brush", function (d) {
                     d3.select("#parcoords_secondary_grid")
-                        .datum(data.slice(0, data_len))
+                        .datum(d.slice(0, data_len))
                         .call(grid)
                         .selectAll(".divgrid_row")
                         .on({
@@ -1983,22 +2010,9 @@
                             },
                             "mouseout": parcoords.unhighlight
                         });
-
-                    // update data table on brush event
-                    parcoords.on("brush", function (d) {
-                        d3.select("#parcoords_secondary_grid")
-                            .datum(d.slice(0, data_len))
-                            .call(grid)
-                            .selectAll(".divgrid_row")
-                            .on({
-                                "mouseover": function (d) {
-                                    parcoords.highlight([d])
-                                },
-                                "mouseout": parcoords.unhighlight
-                            });
-                    });
-                }
-            </script>
+                });
+            }
+        </script>
     </body>
 
     </html>

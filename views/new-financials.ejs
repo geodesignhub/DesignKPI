@@ -5,11 +5,11 @@
         <div class="container d-flex flex-column flex-md-row justify-content-between">
             <!-- Brand and toggle get grouped for better mobile display -->
 
-            <a class="py-2" class="navbar-brand" href="#">Financial Analysis</a>
-            <a class="py-2 d-none d-md-inline-block active" href="<%= basic_financials_url %>">Costs Table</a></li>
+            <a class="py-2" class="navbar-brand" href="#">Design KPI</a>
+            <a class="py-2 d-none d-md-inline-block" href="<%= basic_financials_url %>">Costs Table</a></li>
             <a class="py-2 d-none d-md-inline-block active" href="<%= detailed_financials_url %>">Detailed Costs</a>
-            <a class="py-2 d-none d-md-inline-block active" href="<%= summary_link %>">KPIs</a>
-            <a class="py-2 d-none d-md-inline-block active" href="<%= import_export_url %>">Import / Export</a>
+            <a class="py-2 d-none d-md-inline-block" href="<%= summary_link %>">KPIs</a>
+            <a class="py-2 d-none d-md-inline-block" href="<%= import_export_url %>">Import / Export</a>
             <!-- /.navbar-header -->
             <!-- /.navbar-collapse -->
         </div>
@@ -73,13 +73,11 @@
                         <small>Capital Expenditure / Initial Investment</small>
                         <p><input type="text" id="initcost-slider" name="initcost-slider" value="" /></p>
                         <div class="row">
-                            <div class="col-4">
-                                <small>Start year (0-30)<input type="text" id="initcost-syear" name="initcost-syear"
-                                        value="0" /></small>
+                            <div class="col-3">
+                                <small>Start year (0-30)<input type="text" id="initcost-syear" name="initcost-syear" value="0" /></small>
                             </div>
-                            <div class="col-4">
-                                <small>End year (0-30)<input type="text" id="initcost-eyear" name="initcost-eyear"
-                                        value="1" /></small>
+                            <div class="col-3">
+                                <small>End year (0-30)<input type="text" id="initcost-eyear" name="initcost-eyear" value="1" /></small>
                             </div>
                         </div>
 
@@ -413,7 +411,7 @@
                     <div class="col-6">
                         <h4>Image</h4>
                         <select id="base_asset_subclass_image" class="form-control">
-                            <option selected disabled>Change Image</option>
+                            <option selected disabled>Set Asset class / sub-class first</option>
                         </select>
                         <br><br><br>
                         <div id="selected_typology_image"> <small>No representative image specified, choose asset class
@@ -424,7 +422,7 @@
                 <br>
 
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-12">
                         <div class="services_form">
                             <h4>Computed Details</h4>
                             <br>
