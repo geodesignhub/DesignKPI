@@ -1,14 +1,15 @@
 <%- include('head') -%>
+
 <body>
     <!-- Navigation -->
-<nav class="site-header sticky-top py-1">
-    <div class="container d-flex flex-column flex-md-row justify-content-between">
+    <nav class="site-header sticky-top py-1">
+        <div class="container d-flex flex-column flex-md-row justify-content-between">
             <!-- Brand and toggle get grouped for better mobile display -->
-                <a class="py-2" class="navbar-brand" href="#">Design KPI</a>
-                <a class="py-2 d-none d-md-inline-block active" href="<%= basic_financials_url %>">Costs Table</a></li>
-                <a class="py-2 d-none d-md-inline-block" href="<%= detailed_financials_url %>">Detailed Costs</a>
-                <a class="py-2 d-none d-md-inline-block" href="<%= summary_link %>">KPIs</a>
-                <a class="py-2 d-none d-md-inline-block" href="<%= import_export_url %>">Import / Export</a>
+            <a class="py-2" class="navbar-brand" href="#">Design KPI</a>
+            <a class="py-2 d-none d-md-inline-block active" href="<%= basic_financials_url %>">Costs Table</a></li>
+            <a class="py-2 d-none d-md-inline-block" href="<%= detailed_financials_url %>">Detailed Costs</a>
+            <a class="py-2 d-none d-md-inline-block" href="<%= summary_link %>">KPIs</a>
+            <a class="py-2 d-none d-md-inline-block" href="<%= import_export_url %>">Import / Export</a>
             <!-- /.navbar-header -->
             <!-- /.navbar-collapse -->
         </div>
@@ -16,25 +17,27 @@
     </nav>
     <!-- /.navbar -->
     <!-- Page Content -->
-    
+
     <div class="container">
-        <!-- /.row -->        
+        <!-- /.row -->
         <!-- Heading Row -->
-      
+
         <br>
         <div class="row">
             <div class="col-md-12">
                 <h3>Instructions</h3>
-        <p>Enter financial information for the different projects and policies in your design. Once complete them can see a cost summary or enter additional details about each of them. </p>
-        <br>
+                <p>Enter financial information for the different projects and policies in your design. Once complete
+                    them can see a cost summary or enter additional details about each of them. </p>
+                <br>
+            </div>
         </div>
-    </div>
 
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="row">
             <div class="col-md-12">
                 <h3>Bulk Update Diagrams </h3>
-                <small class="text-muted">Click on any of the figures to update them, you should get a notification that it has been updated (or not)</small>
+                <small class="text-muted">Click on any of the figures to update them, you should get a notification that
+                    it has been updated (or not)</small>
                 <table id="all_diagrams" class="hor-minimalist-b">
                     <thead>
                         <!-- <tr class='blank'>&nbsp;&nbsp;</tr> -->
@@ -45,15 +48,17 @@
                     <tfoot>
                         <!-- <tr class='blank'>&nbsp;&nbsp;</tr> -->
                     </tfoot>
-                </table>                 
-            </div>            
+                </table>
+            </div>
         </div>
         <!-- Footer -->
-        <br><br><hr>
+        <br><br>
+        <hr>
         <footer>
             <div class="row">
                 <div class="col-lg-12">
-                    <p>&copy; 2019 Geodesignhub, see the <a href="https://geodesignhub.github.io/AssetAnalysis/">Github repository</a> for more information.</p>
+                    <p>&copy; 2019 Geodesignhub, see the <a href="https://geodesignhub.github.io/AssetAnalysis/">Github
+                            repository</a> for more information.</p>
                 </div>
             </div>
         </footer>
@@ -63,9 +68,10 @@
 
     <%- include('footer-js') -%>
 
+    <script type="text/javascript" src="assets/js/assets_details_bulk.js"></script>
     <script type="text/javascript">
         var systems = <%- systems %>;
-        const apitoken = "<%= apitoken  %>"; 
+        const apitoken = "<%= apitoken  %>";
         const projectid = "<%= projectid %>";
         const saved_diagram_details = <%- saved_diagram_details %>;
         const csrf = $("[name='_csrf']").val();
@@ -80,150 +86,190 @@
         var diagrams_table;
         var diagramid = 0;
         var diagramdetail = {};
-        
+
         var diagram_cost_details = {
-             "initCost" : 0,
-             "acfCost" : 100000,
-             "aopexCost" : 0,
-             "asgaCost" : 0
+            "initCost": 0,
+            "acfCost": 100000,
+            "aopexCost": 0,
+            "asgaCost": 0
         }
 
         // fx.base = "USD";
-        
+
         $("#loadingGIF").addClass('d-none');
         var opGJ = {
             "type": "FeatureCollection",
             "features": []
         };
 
-    var asset_class = "";
+        var asset_class = "";
 
-    generateInitTables();
-    var editor; // use a global for the submit and return data rendering in the examples
- 
-$(document).ready(function() {
-    editor = new $.fn.dataTable.Editor( {
-        table: "#all_diagrams",
-           fields: [ {
-                label: "Capital Expenditure:",
-                name: "capex"
-            }, {
-                label: "Operating Expenses",
-                name: "opex"
-            }, {
-                label: "Annual Cash flow",
-                name: "acf"
-            }, {
-                label: "Annual Maintainence",
-                name: "asga"
-            } 
-        
-    ]
-        
-    } );
-    $('#all_diagrams').on( 'click', 'tbody td:not(:first-child)', function (e) {
-        editor.inline( this );
-    } );
+        generateInitTables();
+        var editor; // use a global for the submit and return data rendering in the examples
 
-    editor.on('postEdit', function (e, json, edited_data) {
-        const diagramid = edited_data.DT_RowId;
-        const capex = parseInt(edited_data.capex);
-        const acf = parseInt(edited_data.acf);
-        const opex = parseInt(edited_data.opex);
-        const asga = parseInt(edited_data.asga);
-        const acfg = parseFloat(0.05);
-        const wacc = parseFloat(0.03);
-
-        const capex_start = 0;
-        const capex_end = 1;
-        const acf_start = 0;
-
-        var asset_details = {};
-        const csrf = $("[name='_csrf']").val();
-        const data = {
-            "capex": capex,
-            "acf": acf,
-            "projectid": projectid,
-            "diagramid": diagramid,
-            "opex": opex,
-            "asga": asga,
-            "capex_start": capex_start,
-            "capex_end": capex_end,
-            "acf_start": acf_start,
-            "acfg":acfg,
-            "wacc":wacc,
-            "_csrf": csrf,
-        };
-
-
-        
-        var url = '/set_financials/';
-        
-        var promise = $.ajax({
-            url: url,
-            type: 'POST',
-            data: data
-        });
-
-        promise.done(function (data) {
-            humane.log("Data successfully saved", {
-                addnCls: 'humane-flatty-success'
-            });
-        });
-
-        promise.fail(function (data) {
-            humane.log("Error in saving data, the administrators have been notified", {
-                addnCls: 'humane-flatty-error'
-            });
-        }); 
-
-
-    });
-    let groupColumn = 5;
-    $('#all_diagrams').DataTable( {
-        dom: "Bfrtip",
-            "pageLength": 30,
-            "columnDefs": [{
-                "visible": false,
-                "targets": groupColumn
-            }],
-            searching: false,
-            "ordering": false,
-            
-            "order": [
-                [groupColumn, 'asc']
-            ],
-            "drawCallback": function (settings) {
-                var api = this.api();
-                var rows = api.rows({
-                    page: 'current'
-                }).nodes();
-                var last = null;
-
-                api.column(groupColumn, {
-                    page: 'current'
-                }).data().each(function (group, i) {
-                    if (last !== group) {
-                        $(rows).eq(i).before(
-                            '<tr class="group"><td colspan="">' + group +
-                            '</td></tr>'
-                        );
-                        last = group;
+        $(document).ready(function () {
+            editor = new $.fn.dataTable.Editor({
+                table: "#all_diagrams",
+                fields: [{
+                        label: "Capital Expenditure:",
+                        name: "capex"
+                    }, {
+                        label: "Operating Expenses",
+                        name: "opex"
+                    }, {
+                        label: "Annual Cash flow",
+                        name: "acf"
+                    }, {
+                        label: "Annual Maintainence",
+                        name: "asga"
                     }
+
+                ]
+
+            });
+            $('#all_diagrams').on('click', 'tbody td:not(:first-child)', function (e) {
+                editor.inline(this);
+            });
+
+            editor.on('postEdit', function (e, json, edited_data) {
+                const diagramid = edited_data.DT_RowId;
+                const capex = parseInt(edited_data.capex);
+                const acf = parseInt(edited_data.acf);
+                const opex = parseInt(edited_data.opex);
+                const asga = parseInt(edited_data.asga);
+                const acfg = parseFloat(0.05);
+                const wacc = parseFloat(0.03);
+
+                const capex_start = 0;
+                const capex_end = 1;
+                const acf_start = 0;
+
+                var asset_details = {};
+                const csrf = $("[name='_csrf']").val();
+                const data = {
+                    "capex": capex,
+                    "acf": acf,
+                    "projectid": projectid,
+                    "diagramid": diagramid,
+                    "opex": opex,
+                    "asga": asga,
+                    "capex_start": capex_start,
+                    "capex_end": capex_end,
+                    "acf_start": acf_start,
+                    "acfg": acfg,
+                    "wacc": wacc,
+                    "_csrf": csrf,
+                };
+
+
+
+                var url = '/set_financials/';
+
+                var promise = $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: data
                 });
-            },
-        style: 'single', 
-        columns: [
-           
-            { data: "description" },
-            { data: "capex",render: $.fn.dataTable.render.number( ' ', '.', 0, 'EUR ' )  },
-            { data: "opex" ,render: $.fn.dataTable.render.number( ' ', '.', 0, 'EUR ' ) },
-            { data: "acf" ,render: $.fn.dataTable.render.number( ' ', '.', 0, 'EUR ' ) },
-            { data: "asga" ,render: $.fn.dataTable.render.number( ' ', '.', 0, 'EUR ' ) },
-            { data: "system"  },
-        ]
-    });
-    });
+
+                promise.done(function (data) {
+                    humane.log("Data successfully saved", {
+                        addnCls: 'humane-flatty-success'
+                    });
+                });
+
+                promise.fail(function (data) {
+                    humane.log("Error in saving data, the administrators have been notified", {
+                        addnCls: 'humane-flatty-error'
+                    });
+                });
+
+
+            });
+            let groupColumn = 5;
+            $('#all_diagrams').DataTable({
+
+                dom: "Bfrtip",
+                "pageLength": 30,
+                "columnDefs": [{
+                    "visible": false,
+                    "targets": groupColumn
+                }],
+                searching: false,
+                "ordering": false,
+
+                initComplete: function () {
+                    this.api().columns().every(function () {
+
+                        var column = this;
+
+                        var select = $('<select><option value=""></option></select>')
+                            .appendTo($(column.footer()).empty())
+                            .on('change', function () {
+                                var val = $.fn.dataTable.util.escapeRegex(
+                                    $(this).val()
+                                );
+
+                                column
+                                    .search(val ? '^' + val + '$' : '', true, false)
+                                    .draw();
+                            });
+
+                        column.data().unique().sort().each(function (d, j) {
+                            select.append('<option value="' + d + '">' + d +
+                                '</option>')
+                        });
+                    });
+                },
+                "order": [
+                    [groupColumn, 'asc']
+                ],
+                "drawCallback": function (settings) {
+                    var api = this.api();
+                    var rows = api.rows({
+                        page: 'current'
+                    }).nodes();
+                    var last = null;
+
+                    api.column(groupColumn, {
+                        page: 'current'
+                    }).data().each(function (group, i) {
+                        if (last !== group) {
+                            $(rows).eq(i).before(
+                                '<tr class="group"><td colspan="">' + group +
+                                '</td></tr>'
+                            );
+                            last = group;
+                        }
+                    });
+                },
+                style: 'single',
+                columns: [
+
+                    {
+                        data: "description"
+                    },
+                    {
+                        data: "capex",
+                        render: $.fn.dataTable.render.number(' ', '.', 0, 'EUR ')
+                    },
+                    {
+                        data: "opex",
+                        render: $.fn.dataTable.render.number(' ', '.', 0, 'EUR ')
+                    },
+                    {
+                        data: "acf",
+                        render: $.fn.dataTable.render.number(' ', '.', 0, 'EUR ')
+                    },
+                    {
+                        data: "asga",
+                        render: $.fn.dataTable.render.number(' ', '.', 0, 'EUR ')
+                    },
+                    {
+                        data: "system"
+                    },
+                ]
+            });
+        });
     </script>
 
 </body>
