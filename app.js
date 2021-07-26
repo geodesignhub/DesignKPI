@@ -22,8 +22,8 @@ app.use(csrf({
     cookie: true
 }));
 
-let baseurl = 'https://www.geodesignhub.com/api/v1/projects/';
-// let baseurl = 'http://local.test:8000/api/v1/projects/';
+// let baseurl = 'https://www.geodesignhub.com/api/v1/projects/';
+let baseurl = 'http://local.test:8000/api/v1/projects/';
 
 
 const image_files = ['commecial-office.jpg',
@@ -364,11 +364,8 @@ app.get('/summary', function (request, response) {
         const URLS = [synprojectsurl, boundsurl, systemsurl, projecturl, syndiagramsurl, boundaryurl, boardsurl];
 
         const summary_link = '/summary?' + 'projectid=' + projectid + '&cteamid=' + cteamid + '&apitoken=' + apikey + '&synthesisid=' + synthesisid + '&boardid=' + boardid;
-
         const detailed_financials_url = '/details?' + 'projectid=' + projectid + '&cteamid=' + cteamid + '&apitoken=' + apikey + '&synthesisid=' + synthesisid + '&boardid=' + boardid;
-
         const basic_financials_url = '/?' + 'projectid=' + projectid + '&cteamid=' + cteamid + '&apitoken=' + apikey + '&synthesisid=' + synthesisid + '&boardid=' + boardid;
-
         const import_export_url = '/exchange?' + 'projectid=' + projectid + '&cteamid=' + cteamid + '&apitoken=' + apikey + '&synthesisid=' + synthesisid + '&boardid=' + boardid;
 
 
@@ -400,7 +397,7 @@ app.get('/summary', function (request, response) {
 
             var redis_keys = [];
             for (var i = syn_diag_list['diagrams'].length - 1; i >= 0; i--) {
-                const cur_key = projectid + "-" + syn_diag_list['diagrams'][i]
+                const cur_key = projectid + "-" + syn_diag_list['diagrams'][i];
                 redis_keys.push(cur_key);
             }
 
@@ -441,7 +438,7 @@ app.get('/summary', function (request, response) {
                                 "asset_details": {}
                             });
                         } else {
-                            var rr = redis_results
+                            var rr = redis_results;
                             rr["key"] = rkey;
                             return done(null, rr);
                         }
@@ -468,7 +465,6 @@ app.get('/summary', function (request, response) {
                             "systemdetail": JSON.stringify(sysdetails),
                             "sequence": JSON.stringify(results[6]),
                             "saved_diagram_details": JSON.stringify(op),
-
                             "summary_link": summary_link,
                             "detailed_financials_url": detailed_financials_url,
                             "basic_financials_url": basic_financials_url,

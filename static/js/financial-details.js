@@ -312,15 +312,38 @@ function initializeTables() {
         var groupColumn = 3;
         var t = $('#' + domid).DataTable({
 
+            "initComplete": function () {
+                this.api().columns().every( function () {
+                    
+                    var column = this;
+                    console.log(column)
+                    var select = $('<select><option value=""></option></select>')
+                        .appendTo( $(column.footer()).empty() )
+                        .on( 'change', function () {
+                            var val = $.fn.dataTable.util.escapeRegex(
+                                $(this).val()
+                            );
+     
+                            column
+                                .search( val ? '^'+val+'$' : '', true, false )
+                                .draw();
+                        } );
+     
+                    column.data().unique().sort().each( function ( d, j ) {
+                        select.append( '<option value="'+d+'">'+d+'</option>' )
+                    } );
+                } );
+            },
+    
             "columnDefs": [{
                 "visible": false,
                 "targets": groupColumn
             }],
-            searching: false,
+            "searching": false,
             "pageLength": 5,
             "lengthMenu": [[5, 10], [5, 10]],
             "pagingType": "simple",
-            fixedHeader: {
+            "fixedHeader": {
                 header: false,
                 footer: true
             },
