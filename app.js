@@ -22,8 +22,8 @@ app.use(csrf({
     cookie: true
 }));
 
-// let baseurl = 'https://www.geodesignhub.com/api/v1/projects/';
-let baseurl = 'http://local.test:8000/api/v1/projects/';
+let baseurl = 'https://www.geodesignhub.com/api/v1/projects/';
+// let baseurl = 'http://local.test:8000/api/v1/projects/';
 
 
 const image_files = ['commecial-office.jpg',
