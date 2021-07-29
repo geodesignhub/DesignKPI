@@ -268,28 +268,28 @@ function render_diagram_details(details) {
     let sysdetail = systemdetail.find(o => o.id === system_id);
     $("#diagName").html(diagramdetail['description']);
 
-    
 
-        if (diagramdetail['length'] == 0) {
-            $("#diagAreaLength").html("Area: " + parseFloat((diagramdetail['area'] / 10000)).toFixed(2) + " ha.");
-            if (diagramdetail['cost_override'] !== 0) {
-                if (diagramdetail['cost_override_type'] == 'total') {
-                    totalcost = parseFloat(diagramdetail['cost_override']).toFixed(2);
-                } else {
-                    totalcost = parseFloat((diagramdetail['area'] / 10000)).toFixed(2) * diagramdetail['cost_override'];
-                }
+
+    if (diagramdetail['length'] == 0) {
+        $("#diagAreaLength").html("Area: " + parseFloat((diagramdetail['area'] / 10000)).toFixed(2) + " ha.");
+        if (diagramdetail['cost_override'] !== 0) {
+            if (diagramdetail['cost_override_type'] == 'total') {
+                totalcost = parseFloat(diagramdetail['cost_override']).toFixed(2);
             } else {
-                totalcost = parseFloat((diagramdetail['area'] / 10000)).toFixed(2) * sysdetail['syscost'];
-
+                totalcost = parseFloat((diagramdetail['area'] / 10000)).toFixed(2) * diagramdetail['cost_override'];
             }
+        } else {
+            totalcost = parseFloat((diagramdetail['area'] / 10000)).toFixed(2) * sysdetail['syscost'];
 
-        } else if (diagramdetail['area'] == 0) {
-            $("#diagAreaLength").html("Length: " + diagramdetail['length'] + " km.");
-            totalcost = parseFloat(diagramdetail['length']) * sysdetail['syscost'];
         }
-    
 
-    
+    } else if (diagramdetail['area'] == 0) {
+        $("#diagAreaLength").html("Length: " + diagramdetail['length'] + " km.");
+        totalcost = parseFloat(diagramdetail['length']) * sysdetail['syscost'];
+    }
+
+
+
     inputLayer.clearLayers();
     var diagramLayer = L.geoJSON(diagramdetail['geojson'], {
         style: miniMapstyleComp
@@ -327,6 +327,7 @@ function initializeTables() {
             "order": [
                 [groupColumn, 'asc']
             ],
+
             "drawCallback": function (settings) {
                 var api = this.api();
                 var rows = api.rows({
@@ -345,17 +346,20 @@ function initializeTables() {
                         last = group;
                     }
                 });
-                
-        }
-        
-    });
-    return t;
-};
+
+
+
+            }
+
+        });
+        return t;
+    };
     diagrams_table = tableGenerator('all_diagrams');
 }
 
 
-function generateInitTables() {
+function generateInitTables(project_policy_both) {
+
     destroyTables();
     var allDiagrams = syndiagrams.diagrams;
     const sdd = saved_diagram_details;
@@ -410,13 +414,17 @@ function generateInitTables() {
     for (var h = 0; h < syslen; h++) {
         var cursys = sys[h];
         if (cursys.diagrams.length > 0) {
-            var yrCounter = 0
+            // var yrCounter = 0
             if (headcounter === 0) { // header row
-                var npvHTML = "<tr><th class='header initCol'>Title</th><th class='finheader'>Financial Data</th><th class='aaheader'>Asset Data</th><th class='systemheader'>System</th>";
-                npvHTML += "</tr>";
-                $('#all_diagrams  > thead').append(npvHTML);
+                var table_header = "<tr><th class='header initCol'>Title</th><th class='finheader'>Financial Data</th><th class='aaheader'>Asset Data</th><th class='systemheader'>System</th></tr>";
+                $('#all_diagrams  > thead').append(table_header);
                 headcounter += 1;
             } // header is added. 
+            if (footercounter === 0) { // footer row
+                var table_footer = "<tr><th class='header initCol'>Title</th><th class='finheader'>Financial Data</th><th class='aaheader'>Asset Data</th><th class='systemheader'>System</th></tr>";
+                $('#all_diagrams  > tfoot').append(table_footer);
+                footercounter += 1;
+            } // footer is added. 
             // console.log(npvHTML)
             // add system row 
             var diaglen = cursys.diagrams.length;
@@ -425,39 +433,43 @@ function generateInitTables() {
                 var curdiag = cursys.diagrams[p];
                 var fin_set = 0;
                 var asset_set = 0;
-                if (curdiag.features.length > 0) {
-                    var curdiagprops = curdiag.features[0].properties;
-                    var curdiagid = curdiag.features[0].properties.diagramid;
+                var projectorpolicy = curdiag.features[0].properties.areatype;
+                if (project_policy_both == 'all' || projectorpolicy == project_policy_both) {
 
-                    for (let index = 0; index < sdd.length; index++) {
-                        const cur_element = sdd[index];
-                        var cur_diagram_id = cur_element['key'].split('-')[1];
-                        if (cur_diagram_id == curdiagid) {
-                            fin_set = (cur_element.hasOwnProperty('fin_set')) ? cur_element.fin_set : 0;
-                            asset_set = (cur_element.hasOwnProperty('asset_set')) ? cur_element.asset_set : 0;
-                            break;
+                    if (curdiag.features.length > 0) {
+                        var curdiagprops = curdiag.features[0].properties;
+                        var curdiagid = curdiag.features[0].properties.diagramid;
+
+                        for (let index = 0; index < sdd.length; index++) {
+                            const cur_element = sdd[index];
+                            var cur_diagram_id = cur_element['key'].split('-')[1];
+                            if (cur_diagram_id == curdiagid) {
+                                fin_set = (cur_element.hasOwnProperty('fin_set')) ? cur_element.fin_set : 0;
+                                asset_set = (cur_element.hasOwnProperty('asset_set')) ? cur_element.asset_set : 0;
+                                break;
+                            }
                         }
-                    }
-                    var fin_button_html = '<button type="button" class="btn btn-link" onclick="get_financials(' + "'" + curdiagid + "'" + ')"><i class="fa fa-plus" ></i> Set</button> ';
-                    if (fin_set) {
-                        fin_button_html = '<button type="button" class="btn btn-link" onclick="get_financials(' + "'" + curdiagid + "'" + ')"> Modify</button> '
-                    }
+                        var fin_button_html = '<button type="button" class="btn btn-link" onclick="get_financials(' + "'" + curdiagid + "'" + ')"><i class="fa fa-plus" ></i> Set</button> ';
+                        if (fin_set) {
+                            fin_button_html = '<button type="button" class="btn btn-link" onclick="get_financials(' + "'" + curdiagid + "'" + ')"> Modify</button> '
+                        }
 
-                    var asset_button_html = '<button type="button" class="btn btn-link" onclick="get_asset_details(' + "'" + curdiagid + "'" + ')"><i class="fa fa-plus" ></i> Set</button> ';
-                    if (asset_set) {
-                        asset_button_html = '<button type="button" class="btn btn-link" onclick="get_asset_details(' + "'" + curdiagid + "'" + ')"> Modify</button> ';
-                    }
+                        var asset_button_html = '<button type="button" class="btn btn-link" onclick="get_asset_details(' + "'" + curdiagid + "'" + ')"><i class="fa fa-plus" ></i> Set</button> ';
+                        if (asset_set) {
+                            asset_button_html = '<button type="button" class="btn btn-link" onclick="get_asset_details(' + "'" + curdiagid + "'" + ')"> Modify</button> ';
+                        }
 
-                    var projectorpolicy = curdiag.features[0].properties.areatype;
-                    var diagrowHTMLnpv = "<tr class=" + "'" + cursys.id + "'" + "><td class='assetdetails initCol'>" +
-                        curdiagprops.description + "<br>(" + projectorpolicy + ")</td>" + "<td class=" +
-                        "'fin-" + curdiagid + "'" + ">" + fin_button_html + "</td>" + "<td class=" +
-                        "'aa-" + curdiagid + "'" + ">" + asset_button_html + "</td>" + "<td class=" + "system-" +
-                        curdiagid + "'" +
-                        ">" + cursys.sysname + "</td>";
-                    yrCounter = 0;
-                    diagrowHTMLnpv += "</tr>";
-                    $('#all_diagrams > tbody').append(diagrowHTMLnpv);
+
+                        var diagrowHTMLnpv = "<tr class=" + "'" + cursys.id + "'" + "><td class='assetdetails initCol'>" +
+                            curdiagprops.description + "</td>" + "<td class=" +
+                            "'fin-" + curdiagid + "'" + ">" + fin_button_html + "</td>" + "<td class=" +
+                            "'aa-" + curdiagid + "'" + ">" + asset_button_html + "</td>" + "<td class=" + "system-" +
+                            curdiagid + "'" +
+                            ">" + cursys.sysname + "</td>";
+                        yrCounter = 0;
+                        diagrowHTMLnpv += "</tr>";
+                        $('#all_diagrams > tbody').append(diagrowHTMLnpv);
+                    }
                 }
             }
         }
@@ -589,7 +601,7 @@ function get_financials(diagram_id) {
 
         $("#financial-details").removeClass('d-none');
         $("#asset-details").addClass('d-none');
-        
+
         render_diagram_details([default_values, diagram_data.opts.diagramdetail]);
         initCostSliders(default_values);
         initpercentSliders(default_values);
