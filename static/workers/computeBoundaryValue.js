@@ -147,7 +147,7 @@ function computeBoundaryValue(design, boundary, investmentdata, selectedsystems,
                     if (diag_id == diagID) {
                         const saved_bnd_diag_id = bndID + '-' + diag_id;
                         var cur_diagram_asset_details;
-                        if (cur_diagram_saved_details.hasOwnProperty('asset_set')) {
+                        if (cur_diagram_saved_details.hasOwnProperty('asset_set') && (cur_diagram_saved_details['asset_set'] == '1' || cur_diagram_saved_details['asset_set'] == 1)) {
                             cur_diagram_asset_details = cur_diagram_saved_details['asset_details'];
                         } else {
                             cur_diagram_asset_details = {};
