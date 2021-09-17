@@ -136,7 +136,7 @@ app.post('/exchange_set_data', function (request, response) {
         let current_saved_data = saved_diagram_data[i_key];          
         let key = current_saved_data['key'];
         delete current_saved_data['key'];        
-        // redisclient.hmset(key, current_saved_data);
+        redisclient.hmset(key, current_saved_data);
     }
     
     response.contentType('application/json');
