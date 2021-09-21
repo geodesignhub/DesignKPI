@@ -108,7 +108,7 @@ function computeNPV() {
     // console.log(initInvestment, acf, aopex, asga);
     var acfg = (parseFloat($("#acfg-slider").val()) / 100);
     var wacc = (parseFloat($("#wacc-slider").val()) / 100);
-    var numYears = 30;
+    var numYears = 31;
     var income = [];
     var lastyearsincome;
     var yearsPlot = [];
@@ -127,9 +127,7 @@ function computeNPV() {
     for (var x = 0; x < numYears; x++) {
         yearsPlot.push(x);
         var c_acf = 0;
-        if (x <= acf_syear) {
-            c_acf = 0;
-        } else {
+        if (x > acf_syear) {
             c_acf = acf;
         }
 
@@ -144,10 +142,11 @@ function computeNPV() {
         } else {
             lastyearsincome = income[x - 1];
             var thisyearsincome = ebitda + (lastyearsincome * acfg);
+            thisyearsincome = thisyearsincome + (lastyearsincome * acfg);
             income.push(parseFloat(thisyearsincome.toFixed(2)));
         }
-
     }
+
     var dcf = [];
     for (var y = 0; y < numYears; y++) {
         var curdcf = ((income[y]) / Math.pow((1 + wacc), y));
