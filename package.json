@@ -1,5 +1,5 @@
 {
-    "name": "geodesignhub-asset-analysis",
+    "name": "geodesignhub-design-kpi",
     "version": "1.0.0",
     "description": "A Geodesignhub plugin to help compute Discounted Cash Flow analysis of a diagram and Investment flow of a design.",
     "main": "app.js",
